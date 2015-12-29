@@ -32,11 +32,12 @@ namespace emptyeisnergc2nd {
 		int m_nSentenceLength;
 
 		tscore m_nRetval;
-		tscore m_lArcScore[MAX_SENTENCE_SIZE << 1];
-		tscore m_lBiSiblingArcScore[(MAX_SENTENCE_SIZE << MAX_SENTENCE_BITS) << 1];
-		tscore m_lGrandSiblingArcScore[MAX_SENTENCE_SIZE << 1];
-		tscore m_lGrandBiSiblingArcScore[MAX_SENTENCE_SIZE << 1];
-		AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE> m_abFirstOrderEmptyScore[MAX_SENTENCE_SIZE << 1];
+		std::vector<std::vector<tscore>> m_vecArcScore;
+		std::vector<std::vector<std::vector<tscore>>> m_vecBiSiblingScore;
+		std::vector<std::vector<std::vector<tscore>>> m_vecGrandChildScore;
+		std::vector<std::vector<int>> m_vecGrandsAsLeft;
+		std::vector<std::vector<int>> m_vecGrandsAsRight;
+		std::vector<std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>> m_vecFirstOrderEmptyScore;
 
 		int m_nDis, m_nDir;
 
@@ -78,10 +79,10 @@ namespace emptyeisnergc2nd {
 		const tscore & biSiblingArcScore(const int & p, const int & c, const int & c2);
 		const tscore & grandSiblingArcScore(const int & g, const int & p, const int & c);
 		const tscore & grandBiSiblingArcScore(const int & g, const int & p, const int & c, const int & c2);
-		void initArcScore(const int & d);
-		void initBiSiblingArcScore(const int & d);
-		void initGrandSiblingArcScore(const int & d, const int & i);
-		void initGrandBiSiblingArcScore(const int & d, const int & i, const int & k);
+		void initArcScore();
+		void initBiSiblingArcScore();
+		void initGrandSiblingArcScore();
+		bool initGrands(int level);
 
 		bool testEmptyNode(const int & p, const int & c);
 		void getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & amount);

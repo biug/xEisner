@@ -282,12 +282,6 @@ namespace eisnergc2nd {
 						item.updateR2L(g, i, item.r2l_im[g].getScore());
 					}
 				}
-				//std::set<int> grands;
-				//for (const auto & g : m_vecGrandsAsLeft[i]) grands.insert(g);
-				//for (const auto & g : m_vecGrandsAsRight[l]) grands.insert(g);
-				//for (const auto & g : grands) {
-				//	item.print(g);
-				//}
 			}
 		}
 		// best root

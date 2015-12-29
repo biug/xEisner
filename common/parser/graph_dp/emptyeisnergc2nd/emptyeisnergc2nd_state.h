@@ -1,6 +1,8 @@
 #ifndef _EMPTY_EISNERGC2ND_STATE_H
 #define _EMPTY_EISNERGC2ND_STATE_H
 
+#include <unordered_map>
+
 #include "emptyeisnergc2nd_macros.h"
 #include "common/parser/agenda.h"
 #include "include/learning/perceptron/score.h"
@@ -25,12 +27,9 @@ namespace emptyeisnergc2nd {
 	public:
 		int type;
 		int left, right;
-		std::vector<ScoreWithSplit> jux;
-		std::vector<ScoreWithSplit> l2r_solid_both, r2l_solid_both;
-		std::vector<ScoreAgenda> l2r_empty_outside, r2l_empty_outside;
-		std::vector<ScoreWithSplit> l2r_solid_outside, r2l_solid_outside;
-		std::vector<ScoreWithBiSplit> l2r_empty_inside, r2l_empty_inside;
-		std::vector<ScoreWithSplit> l2r, r2l;
+		std::unordered_map<int, ScoreWithSplit> jux, l2r_solid_both, r2l_solid_both, l2r_solid_outside, r2l_solid_outside, l2r, r2l;
+		std::unordered_map<int, ScoreWithBiSplit> l2r_empty_inside, r2l_empty_inside;
+		std::unordered_map<int, ScoreAgenda> l2r_empty_outside, r2l_empty_outside;
 
 	public:
 
@@ -38,7 +37,7 @@ namespace emptyeisnergc2nd {
 		StateItem(const StateItem & item);
 		~StateItem();
 
-		void init(const int & l, const int & r, const int & len);
+		void init(const int & l, const int & r);
 
 		void updateJUX(const int & grand, const int & split, const tscore & score);
 		void updateL2RSolidBoth(const int & grand, const int & split, const tscore & score);

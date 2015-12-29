@@ -21,20 +21,9 @@ namespace emptyeisnergc2nd {
 
 		m_Weight = new Weight(sFeatureInput, sFeatureOut);
 
-		for (int i = 0; i < MAX_SENTENCE_SIZE; ++i) {
-			m_lItems[1].push_back(StateItem());
-			m_lItems[1][i].init(i, i, m_nSentenceLength);
-		}
-
 		DepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
 		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
 		DepParser::end_taggedword.refer(TWord::code(END_WORD), TPOSTag::code(END_POSTAG));
-
-		m_tStartTime = 0;
-		m_tInitSpaceTime = 0;
-		m_tGetScoreTime = 0;
-		//m_tUpdateScoreTime = 0;
-		//m_tStartTime = 0;
 	}
 
 	DepParser::~DepParser() {
@@ -132,87 +121,125 @@ namespace emptyeisnergc2nd {
 
 	void DepParser::decode() {
 
-		for (int d = 1; d <= m_nSentenceLength; ++d) {
+		initArcScore();
+		initBiSiblingArcScore();
+		initGrandSiblingArcScore();
+		for (int level = 0; !initGrands(level); ++level);
 
-			initArcScore(d);
-			if (d > 1) {
-				initBiSiblingArcScore(d);
+		for (int i = 0; i < m_nSentenceLength; ++i) {
+			m_lItems[1].push_back(StateItem());
+			StateItem & item = m_lItems[1][i];
+			item.init(i, i);
+			for (const auto & g : m_vecGrandsAsLeft[i]) {
+				item.jux[g] = ScoreWithSplit();
+				item.l2r[g] = ScoreWithSplit();
+				item.r2l[g] = ScoreWithSplit();
+				item.l2r_solid_both[g] = ScoreWithSplit();
+				item.r2l_solid_both[g] = ScoreWithSplit();
+				item.l2r_solid_outside[g] = ScoreWithSplit();
+				item.r2l_solid_outside[g] = ScoreWithSplit();
+				item.l2r_empty_inside[g] = ScoreWithBiSplit();
+				item.r2l_empty_inside[g] = ScoreWithBiSplit();
+				item.l2r_empty_outside[g] = ScoreAgenda();
+				item.r2l_empty_outside[g] = ScoreAgenda();
 			}
+			for (const auto & g : m_vecGrandsAsRight[i]) {
+				item.jux[g] = ScoreWithSplit();
+				item.l2r[g] = ScoreWithSplit();
+				item.r2l[g] = ScoreWithSplit();
+				item.l2r_solid_outside[g] = ScoreWithSplit();
+				item.r2l_solid_outside[g] = ScoreWithSplit();
+				item.l2r_empty_inside[g] = ScoreWithBiSplit();
+				item.r2l_empty_inside[g] = ScoreWithBiSplit();
+				item.l2r_empty_outside[g] = ScoreAgenda();
+				item.r2l_empty_outside[g] = ScoreAgenda();
+			}
+		}
+
+		for (int d = 1; d <= m_nSentenceLength; ++d) {
 
 			m_lItems[d].reserve(m_nSentenceLength - d + 1);
 
 			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 
-				//auto s_time = GetTickCount();
 				m_lItems[d].push_back(StateItem());
-				//m_tInitSpaceTime += GetTickCount() - s_time;
 
 				int l = i + d - 1;
 				StateItem & item = m_lItems[d][i];
-				const tscore & l2r_arc_score = m_lArcScore[ENCODE_L2R(i)];
-				const tscore & r2l_arc_score = m_lArcScore[ENCODE_R2L(i)];
+				const tscore & l2r_arc_score = m_vecArcScore[i][l];
+				const tscore & r2l_arc_score = m_vecArcScore[l][i];
 
 				// initialize
-				//auto start_time = GetTickCount(); //debug
-				item.init(i, l, m_nSentenceLength);
-				//m_tInitSpaceTime += GetTickCount() - start_time; //debug
+				item.init(i, l);
+				// init left grands
+				std::vector<int> tempLeftGrands;
+				for (const auto & g : m_vecGrandsAsLeft[i]) {
+					if (g < i || g > l) {
+						tempLeftGrands.push_back(g);
+					}
+				}
+				m_vecGrandsAsLeft[i] = tempLeftGrands;
+				// init right grands
+				std::vector<int> tempRightGrands;
+				for (const auto & g : m_vecGrandsAsRight[l]) {
+					if (g < i || g > l) {
+						tempRightGrands.push_back(g);
+					}
+				}
+				m_vecGrandsAsRight[l] = tempRightGrands;
 
-				initGrandSiblingArcScore(d, i);
-
-				// jux
 				for (int s = i; s < l; ++s) {
-					int g = 0;
-					const StateItem & litem = m_lItems[s - i + 1][i];
-					const StateItem & ritem = m_lItems[l - s][s + 1];
-					do {
-						if (g == i) {
-							g = l + 1;
-						}
-						int grand = GRAND_INDEX(g, i, d);
-						int lgrand = GRAND_INDEX(g, i, s - i + 1);
-						int rgrand = GRAND_INDEX(g, s + 1, l - s);
+					StateItem & litem = m_lItems[s - i + 1][i];
+					StateItem & ritem = m_lItems[l - s][s + 1];
 
-						item.updateJUX(grand, s, litem.l2r[lgrand].getScore() + ritem.r2l[rgrand].getScore());
-						// l2r_empty_inside
-						tscore l_empty_inside_base_score = l2r_arc_score + ritem.r2l[GRAND_INDEX(i, s + 1, l - s)].getScore();
-						for (const auto & l_beam : litem.l2r_empty_outside[lgrand]) {
-							int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(l_beam->getSplit()));
-							int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(l_beam->getSplit()));
-							int j = DECODE_EMPTY_POS(l_beam->getSplit());
-							item.updateL2REmptyInside(grand, p, l_beam->getSplit(), l_empty_inside_base_score +
-								l_beam->getScore() +
-								biSiblingArcScore(i, k, l) + // empty node bisibling
-								biSiblingArcScore(i, j == i ? -1 : j, l) + // solid node bisibling
-								m_lGrandSiblingArcScore[ENCODE_L2R(g)] +
-								grandBiSiblingArcScore(g, i, k, l) + // empty node grand bisibling
-								grandBiSiblingArcScore(g, i, j == i ? -1 : j, l)); // solid node grand bisibling
+					for (const auto & g : m_vecGrandsAsLeft[i]) {
+						// jux
+						if (litem.l2r.find(g) != litem.l2r.end() && ritem.r2l.find(g) != ritem.r2l.end()) {
+							item.updateJUX(g, s, litem.l2r[g].getScore() + ritem.r2l[g].getScore());
 						}
+					}
 
-						// r2l_empty_inside
-						tscore r_empty_inside_base_score = r2l_arc_score + litem.l2r[GRAND_INDEX(l, i, s - i + 1)].getScore();
-						for (const auto & r_beam : ritem.r2l_empty_outside[rgrand]) {
-							int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(r_beam->getSplit()));
-							int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(r_beam->getSplit()));
-							int j = DECODE_EMPTY_POS(r_beam->getSplit());
-							item.updateR2LEmptyInside(grand, p, r_beam->getSplit(), r_empty_inside_base_score +
-								r_beam->getScore() +
-								biSiblingArcScore(l, k, i) +
-								biSiblingArcScore(l, j == l ? -1 : j, i) +
-								m_lGrandSiblingArcScore[ENCODE_R2L(g)] +
-								grandBiSiblingArcScore(g, l, k, i) +
-								grandBiSiblingArcScore(g, l, j == l ? -1 : j, i));
-//							if (i == 24 && l == 25 && grand == 23) {
-//								std::cout << "l = " << l << " j = " << j << " i = " << i << std::endl;
-//								std::cout << r_empty_inside_base_score << std::endl;
-//								std::cout << r_beam->getScore() << std::endl;
-//								std::cout << biSiblingArcScore(l, k, i) << std::endl;
-//								std::cout << biSiblingArcScore(l, j == l ? -1 : j, i) << std::endl;
-//								std::cout << m_lGrandSiblingArcScore[ENCODE_R2L(g)] << std::endl;
-//								std::cout << grandBiSiblingArcScore(g, l, k, i) << std::endl;
-//								std::cout << grandBiSiblingArcScore(g, l, j == l ? -1 : j, i) << std::endl;
-//							}
+					// l2r_empty_inside
+					if (ritem.r2l.find(i) != ritem.r2l.end()) {
+						tscore l_empty_inside_base_score = l2r_arc_score + ritem.r2l[i].getScore();
+						for (const auto & g : m_vecGrandsAsLeft[i]) {
+							if (litem.l2r_empty_outside.find(g) != litem.l2r_empty_outside.end()) {
+								for (const auto & l_beam : litem.l2r_empty_outside[g]) {
+									int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(l_beam->getSplit()));
+									int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(l_beam->getSplit()));
+									int j = DECODE_EMPTY_POS(l_beam->getSplit());
+									item.updateL2REmptyInside(g, p, l_beam->getSplit(), l_empty_inside_base_score +
+										l_beam->getScore() +
+										biSiblingArcScore(i, k, l) + // empty node bisibling
+										biSiblingArcScore(i, j == i ? -1 : j, l) + // solid node bisibling
+										m_vecGrandChildScore[i][l][g] +
+										grandBiSiblingArcScore(g, i, k, l) + // empty node grand bisibling
+										grandBiSiblingArcScore(g, i, j == i ? -1 : j, l)); // solid node grand bisibling
+								}
+							}
 						}
-					} while (++g <= m_nSentenceLength);
+					}
+
+					// r2l_empty_inside
+					if (litem.l2r.find(l) != litem.l2r.end()) {
+						tscore r_empty_inside_base_score = r2l_arc_score + litem.l2r[l].getScore();
+						for (const auto & g : m_vecGrandsAsRight[l]) {
+							if (ritem.r2l_empty_outside.find(g) != ritem.r2l_empty_outside.end()) {
+								for (const auto & r_beam : ritem.r2l_empty_outside[g]) {
+									int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(r_beam->getSplit()));
+									int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(r_beam->getSplit()));
+									int j = DECODE_EMPTY_POS(r_beam->getSplit());
+									item.updateR2LEmptyInside(g, p, r_beam->getSplit(), r_empty_inside_base_score +
+										r_beam->getScore() +
+										biSiblingArcScore(l, k, i) +
+										biSiblingArcScore(l, j == l ? -1 : j, i) +
+										m_vecGrandChildScore[l][i][g] +
+										grandBiSiblingArcScore(g, l, k, i) +
+										grandBiSiblingArcScore(g, l, j == l ? -1 : j, i));
+								}
+							}
+						}
+					}
 				}
 
 				for (int k = i + 1; k < l; ++k) {
@@ -220,188 +247,209 @@ namespace emptyeisnergc2nd {
 					StateItem & litem = m_lItems[k - i + 1][i];
 					StateItem & ritem = m_lItems[l - k + 1][k];
 
-					int lgrand = GRAND_INDEX(l, i, k - i + 1);
-					int rgrand = GRAND_INDEX(i, k, l - k + 1);
-
-					tscore l_base_jux = ritem.jux[rgrand].getScore() + l2r_arc_score + m_lBiSiblingArcScore[ENCODE_2ND_L2R(i, k)];
-					tscore r_base_jux = litem.jux[lgrand].getScore() + r2l_arc_score + m_lBiSiblingArcScore[ENCODE_2ND_R2L(i, k)];
-
-
-					initGrandBiSiblingArcScore(d, i, k);
-
-					int g = 0;
-					do {
-						if (g == i) {
-							g = l + 1;
+					// l2r solid both
+					if (ritem.jux.find(i) != ritem.jux.end()) {
+						tscore l_base_jux = ritem.jux[i].getScore() + l2r_arc_score + m_vecBiSiblingScore[i][l][k];
+						for (const auto & g : m_vecGrandsAsLeft[i]) {
+							if (litem.l2r_solid_outside.find(g) != litem.l2r_solid_outside.end()) {
+								item.updateL2RSolidBoth(g, k, l_base_jux + m_vecGrandChildScore[i][l][g] + grandBiSiblingArcScore(g, i, k, l) + litem.l2r_solid_outside[g].getScore());
+							}
 						}
-						int grand = GRAND_INDEX(g, i, d);
-
-						const auto & l_beam = litem.l2r_solid_outside[GRAND_INDEX(g, i, k - i + 1)];
-						const auto & r_beam = ritem.r2l_solid_outside[GRAND_INDEX(g, k, l - k + 1)];
-
-						// l2r solid both
-						item.updateL2RSolidBoth(grand, k, l_base_jux + m_lGrandSiblingArcScore[ENCODE_L2R(g)] + m_lGrandBiSiblingArcScore[ENCODE_L2R(g)] + l_beam.getScore());
-
-						// r2l solid both
-						item.updateR2LSolidBoth(grand, k, r_base_jux + m_lGrandSiblingArcScore[ENCODE_R2L(g)] + m_lGrandBiSiblingArcScore[ENCODE_R2L(g)] + r_beam.getScore());
-
-						// l2r_empty_outside
-						for (const auto & swt : m_abFirstOrderEmptyScore[ENCODE_L2R(i)]) {
-							const int & t = swt->getType();
-							// s is split with type
-							int s = ENCODE_EMPTY(k, t);
-							// o is outside empty
-							int o = ENCODE_EMPTY(l + 1, t);
-							tscore l_empty_outside_base_score = ritem.l2r[rgrand].getScore() + swt->getScore() + biSiblingArcScore(i, k, o);
-							item.updateL2REmptyOutside(grand, s, l_empty_outside_base_score +
-								l_beam.getScore() +
-								grandSiblingArcScore(g, i, o) +
-								grandBiSiblingArcScore(g, i, k, o));
+					}
+					// r2l solid both
+					if (litem.jux.find(l) != litem.jux.end()) {
+						tscore r_base_jux = litem.jux[l].getScore() + r2l_arc_score + m_vecBiSiblingScore[l][i][k];
+						for (const auto & g : m_vecGrandsAsRight[l]) {
+							if (ritem.r2l_solid_outside.find(g) != ritem.r2l_solid_outside.end()) {
+								item.updateR2LSolidBoth(g, k, r_base_jux + m_vecGrandChildScore[l][i][g] + grandBiSiblingArcScore(g, l, k, i) + ritem.r2l_solid_outside[g].getScore());
+							}
 						}
+					}
 
-						// r2l_empty_outside
-						for (const auto & swt : m_abFirstOrderEmptyScore[ENCODE_R2L(i)]) {
-							const int & t = swt->getType();
-							int s = ENCODE_EMPTY(k, t);
-							int o = ENCODE_EMPTY(i, t);
-							tscore r_empty_outside_base_score = litem.r2l[lgrand].getScore() + swt->getScore() + biSiblingArcScore(l, k, o);
-							item.updateR2LEmptyOutside(grand, s, r_empty_outside_base_score +
-								r_beam.getScore() +
-								grandSiblingArcScore(g, l, o) +
-								grandBiSiblingArcScore(g, l, k, o));
+					if (ritem.l2r.find(i) != ritem.l2r.end()) {
+						for (const auto & g : m_vecGrandsAsLeft[i]) {
+							if (litem.l2r_solid_outside.find(g) != litem.l2r_solid_outside.end()) {
+								// l2r_empty_outside
+								for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
+									const int & t = swt->getType();
+									// s is split with type
+									int s = ENCODE_EMPTY(k, t);
+									// o is outside empty
+									int o = ENCODE_EMPTY(l + 1, t);
+									tscore l_empty_outside_base_score = ritem.l2r[i].getScore() + swt->getScore() + biSiblingArcScore(i, k, o);
+									item.updateL2REmptyOutside(g, s, l_empty_outside_base_score +
+										litem.l2r_solid_outside[g].getScore() +
+										grandSiblingArcScore(g, i, o) +
+										grandBiSiblingArcScore(g, i, k, o));
+								}
+								// complete
+								item.updateL2R(g, k, litem.l2r_solid_outside[g].getScore() + ritem.l2r[i].getScore());
+							}
 						}
+					}
 
-						// complete
-						item.updateL2R(grand, k, litem.l2r_solid_outside[GRAND_INDEX(g, i, k - i + 1)].getScore() + ritem.l2r[rgrand].getScore());
-						item.updateR2L(grand, k, ritem.r2l_solid_outside[GRAND_INDEX(g, k, l - k + 1)].getScore() + litem.r2l[lgrand].getScore());
-
-					} while (++g <= m_nSentenceLength);
+					if (litem.r2l.find(l) != litem.r2l.end()) {
+						for (const auto & g : m_vecGrandsAsRight[l]) {
+							if (ritem.r2l_solid_outside.find(g) != ritem.r2l_solid_outside.end()) {
+								// r2l_empty_outside
+								for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
+									const int & t = swt->getType();
+									int s = ENCODE_EMPTY(k, t);
+									int o = ENCODE_EMPTY(i, t);
+									tscore r_empty_outside_base_score = litem.r2l[l].getScore() + swt->getScore() + biSiblingArcScore(l, k, o);
+									item.updateR2LEmptyOutside(g, s, r_empty_outside_base_score +
+										ritem.r2l_solid_outside[g].getScore() +
+										grandSiblingArcScore(g, l, o) +
+										grandBiSiblingArcScore(g, l, k, o));
+								}
+								// complete
+								item.updateR2L(g, k, ritem.r2l_solid_outside[g].getScore() + litem.r2l[l].getScore());
+							}
+						}
+					}
 				}
 
 				if (d > 1) {
-					int g = 0;
-					do {
-						if (g == i) {
-							g = l + 1;
+					StateItem & litem = m_lItems[d - 1][i];
+					StateItem & ritem = m_lItems[d - 1][i + 1];
+
+					if (ritem.r2l.find(i) != ritem.r2l.end()) {
+						for (const auto & g : m_vecGrandsAsLeft[i]) {
+							// l2r_solid_both
+							item.updateL2RSolidBoth(g, i, ritem.r2l[i].getScore() +
+								l2r_arc_score +
+								m_vecBiSiblingScore[i][l][i] +
+								m_vecGrandChildScore[i][l][g] +
+								grandBiSiblingArcScore(g, i, -1, l));
 						}
-						int grand = GRAND_INDEX(g, i, d);
-
-						// l2r_solid_both
-						item.updateL2RSolidBoth(grand, i, m_lItems[d - 1][i + 1].r2l[GRAND_INDEX(i, i + 1, d - 1)].getScore() +
-							l2r_arc_score +
-							m_lBiSiblingArcScore[ENCODE_2ND_L2R(i, i)] +
-							m_lGrandSiblingArcScore[ENCODE_L2R(g)] +
-							grandBiSiblingArcScore(g, i, -1, l));
-						// r2l_solid_both
-						item.updateR2LSolidBoth(grand, l, m_lItems[d - 1][i].l2r[GRAND_INDEX(l, i, d - 1)].getScore() +
-							r2l_arc_score +
-							m_lBiSiblingArcScore[ENCODE_2ND_R2L(i, i)] +
-							m_lGrandSiblingArcScore[ENCODE_R2L(g)] +
-							grandBiSiblingArcScore(g, l, -1, i));
-
-						item.updateL2R(grand, l, item.l2r_solid_both[grand].getScore());
-						item.updateR2L(grand, i, item.r2l_solid_both[grand].getScore());
-						// l2r_solid_outside
-						item.updateL2RSolidOutside(grand, item.l2r_empty_inside[grand].getSplit(), item.l2r_empty_inside[grand].getScore());
-						item.updateL2RSolidOutside(grand, item.l2r_solid_both[grand].getSplit(), item.l2r_solid_both[grand].getScore());
-						item.updateR2LSolidOutside(grand, item.r2l_empty_inside[grand].getSplit(), item.r2l_empty_inside[grand].getScore());
-						item.updateR2LSolidOutside(grand, item.r2l_solid_both[grand].getSplit(), item.r2l_solid_both[grand].getScore());
-					} while (++g <= m_nSentenceLength);
-				}
-				int g = 0;
-				do {
-					if (g == i) {
-						g = l + 1;
 					}
-					int grand = GRAND_INDEX(g, i, d);
-					// l2r_empty_ouside
-					for (const auto & swt : m_abFirstOrderEmptyScore[ENCODE_L2R(i)]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(l, t);
-						int o = ENCODE_EMPTY(l + 1, t);
-						if (d > 1) {
-							tscore base_l2r_empty_outside_score = swt->getScore() + biSiblingArcScore(i, l, o) + m_lItems[1][l].l2r[GRAND_INDEX(i, l, 1)].getScore();
-
-							item.updateL2REmptyOutside(grand, s, base_l2r_empty_outside_score +
-								item.l2r_solid_outside[grand].getScore() +
-								grandSiblingArcScore(g, i, o) +
-								grandBiSiblingArcScore(g, i, l, o));
-
-							item.updateL2REmptyOutside(grand, s, base_l2r_empty_outside_score +
-								item.l2r_solid_outside[grand].getScore() +
-								grandSiblingArcScore(g, i, o) +
-								grandBiSiblingArcScore(g, i, l, o));
+					if (litem.l2r.find(l) != litem.l2r.end()) {
+						for (const auto & g : m_vecGrandsAsRight[l]) {
+							// r2l_solid_both
+							item.updateR2LSolidBoth(g, l, litem.l2r[l].getScore() +
+								r2l_arc_score +
+								m_vecBiSiblingScore[l][i][l] +
+								m_vecGrandChildScore[l][i][g] +
+								grandBiSiblingArcScore(g, l, -1, i));
 						}
-						else {
-							item.updateL2REmptyOutside(grand, s, swt->getScore() +
+					}
+					for (const auto & g : m_vecGrandsAsLeft[i]) {
+						if (item.l2r_solid_both.find(g) != item.l2r_solid_both.end()) {
+							item.updateL2R(g, l, item.l2r_solid_both[g].getScore());
+							item.updateL2RSolidOutside(g, item.l2r_solid_both[g].getSplit(), item.l2r_solid_both[g].getScore());
+						}
+						if (item.l2r_empty_inside.find(g) != item.l2r_empty_inside.end()) {
+							item.updateL2RSolidOutside(g, item.l2r_empty_inside[g].getSplit(), item.l2r_empty_inside[g].getScore());
+						}
+
+					}
+					for (const auto & g : m_vecGrandsAsRight[l]) {
+						if (item.r2l_solid_both.find(g) != item.r2l_solid_both.end()) {
+							item.updateR2L(g, i, item.r2l_solid_both[g].getScore());
+							item.updateR2LSolidOutside(g, item.r2l_solid_both[g].getSplit(), item.r2l_solid_both[g].getScore());
+						}
+						if (item.r2l_empty_inside.find(g) != item.r2l_empty_inside.end()) {
+							item.updateR2LSolidOutside(g, item.r2l_empty_inside[g].getSplit(), item.r2l_empty_inside[g].getScore());
+						}
+					}
+				}
+				if (d > 1) {
+					if (m_lItems[1][l].l2r.find(i) != m_lItems[1][l].l2r.end()) {
+						for (const auto & g : m_vecGrandsAsLeft[i]) {
+							if (item.l2r_solid_outside.find(g) != item.l2r_solid_outside.end()) {
+								// l2r_empty_ouside
+								for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
+									const int & t = swt->getType();
+									int s = ENCODE_EMPTY(l, t);
+									int o = ENCODE_EMPTY(l + 1, t);
+									tscore base_l2r_empty_outside_score = swt->getScore() + biSiblingArcScore(i, l, o) + m_lItems[1][l].l2r[i].getScore();
+									item.updateL2REmptyOutside(g, s, base_l2r_empty_outside_score +
+										item.l2r_solid_outside[g].getScore() +
+										grandSiblingArcScore(g, i, o) +
+										grandBiSiblingArcScore(g, i, l, o));
+								}
+								// l2r
+								item.updateL2R(g, l, item.l2r_solid_outside[g].getScore() + m_lItems[1][l].l2r[i].getScore());
+							}
+						}
+					}
+
+					if (m_lItems[1][i].r2l.find(l) != m_lItems[1][i].r2l.end()) {
+						for (const auto & g : m_vecGrandsAsRight[l]) {
+							if (item.r2l_solid_outside.find(g)!= item.r2l_solid_outside.end()) {
+								// r2l_empty_outside
+								for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
+										const int & t = swt->getType();
+										int s = ENCODE_EMPTY(i, t);
+										int o = ENCODE_EMPTY(i, t);
+										tscore base_r2l_empty_outside_score = swt->getScore() + biSiblingArcScore(l, i, o) + m_lItems[1][i].r2l[l].getScore();
+										item.updateR2LEmptyOutside(g, s, base_r2l_empty_outside_score +
+											item.r2l_solid_outside[g].getScore() +
+											grandSiblingArcScore(g, l, o) +
+											grandBiSiblingArcScore(g, l, i, o));
+								}
+								// r2l
+								item.updateR2L(g, i, item.r2l_solid_outside[g].getScore() + m_lItems[1][i].r2l[l].getScore());
+							}
+						}
+					}
+				}
+				else {
+					for (const auto & g : m_vecGrandsAsLeft[i]) {
+						// l2r_empty_ouside
+						for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
+							const int & t = swt->getType();
+							int s = ENCODE_EMPTY(l, t);
+							int o = ENCODE_EMPTY(l + 1, t);
+							item.updateL2REmptyOutside(g, s, swt->getScore() +
 								biSiblingArcScore(i, -1, o) +
 								grandSiblingArcScore(g, i, o) +
 								grandBiSiblingArcScore(g, i, -1, o));
 						}
+						// l2r
+						item.updateL2R(g, l, 0);
 					}
-					// r2l_empty_outside
-					for (const auto & swt : m_abFirstOrderEmptyScore[ENCODE_R2L(i)]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(i, t);
-						int o = ENCODE_EMPTY(i, t);
-						if (d > 1) {
-							tscore base_r2l_empty_outside_score = swt->getScore() + biSiblingArcScore(l, i, o) + m_lItems[1][i].r2l[GRAND_INDEX(l, i, 1)].getScore();
-
-							item.updateR2LEmptyOutside(grand, s, base_r2l_empty_outside_score +
-								item.r2l_solid_outside[grand].getScore() +
-								grandSiblingArcScore(g, l, o) +
-								grandBiSiblingArcScore(g, l, i, o));
-						}
-						else {
-							item.updateR2LEmptyOutside(grand, s, swt->getScore() +
+					for (const auto & g : m_vecGrandsAsRight[l]) {
+						// r2l_empty_outside
+						for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
+							const int & t = swt->getType();
+							int s = ENCODE_EMPTY(i, t);
+							int o = ENCODE_EMPTY(i, t);
+							item.updateR2LEmptyOutside(g, s, swt->getScore() +
 								biSiblingArcScore(l, -1, o) +
 								grandSiblingArcScore(g, l, o) +
 								grandBiSiblingArcScore(g, l, -1, o));
 						}
+						// r2l
+						item.updateR2L(g, i, 0);
+					}
+				}
 
+				for (const auto & g : m_vecGrandsAsLeft[i]) {
+					if (item.l2r_empty_outside.find(g) != item.l2r_empty_outside.end()) {
+						// l2r
+						item.updateL2R(g, item.l2r_empty_outside[g].bestItem().getSplit(), item.l2r_empty_outside[g].bestItem().getScore());
 					}
-					// l2r
-					if (d > 1) {
-						item.updateL2R(grand, l, item.l2r_solid_outside[grand].getScore() + m_lItems[1][l].l2r[GRAND_INDEX(i, l, 1)].getScore());
-					}
-					else {
-						item.updateL2R(grand, l, 0);
-					}
-					if (item.l2r_empty_outside[grand].size() > 0) {
-						item.updateL2R(grand, item.l2r_empty_outside[grand].bestItem().getSplit(), item.l2r_empty_outside[grand].bestItem().getScore());
-					}
+				}
+				for (const auto & g : m_vecGrandsAsRight[l]) {
 					// r2l
-					if (d > 1) {
-						item.updateR2L(grand, i, item.r2l_solid_outside[grand].getScore() + m_lItems[1][i].r2l[GRAND_INDEX(l, i, 1)].getScore());
+					if (item.r2l_empty_outside.find(g) != item.r2l_empty_outside.end()) {
+						item.updateR2L(g, item.r2l_empty_outside[g].bestItem().getSplit(), item.r2l_empty_outside[g].bestItem().getScore());
 					}
-					else {
-						item.updateR2L(grand, i, 0);
-					}
-					if (item.r2l_empty_outside[grand].size() > 0) {
-						item.updateR2L(grand, item.r2l_empty_outside[grand].bestItem().getSplit(), item.r2l_empty_outside[grand].bestItem().getScore());
-					}
-
-				} while (++g <= m_nSentenceLength);
-
-//				if (i == 24 && l == 25) {
-//					item.print(23);
-//				}
-//				if (i == 25 && l == 25) {
-//					item.print(23);
-//				}
-//				if (i == 24 && l == 24) {
-//					item.print(24);
-//				}
+				}
 			}
 		}
 		// best root
 		m_lItems[m_nSentenceLength + 1].push_back(StateItem());
 		StateItem & item = m_lItems[m_nSentenceLength + 1][0];
-		item.r2l.push_back(ScoreWithSplit());
+		item.r2l[0] = ScoreWithSplit();
 		for (int m = 0; m < m_nSentenceLength; ++m) {
-			item.updateR2L(0, m, m_lItems[m + 1][0].r2l[GRAND_INDEX(m_nSentenceLength, 0, m + 1)].getScore() +
-				m_lItems[m_nSentenceLength - m][m].l2r[GRAND_INDEX(m_nSentenceLength, m, m_nSentenceLength - m)].getScore() +
-				arcScore(m_nSentenceLength, m));
+			if (m_lItems[m + 1][0].r2l.find(m_nSentenceLength) != m_lItems[m + 1][0].r2l.end() &&
+				m_lItems[m_nSentenceLength - m][m].l2r.find(m_nSentenceLength) != m_lItems[m_nSentenceLength - m][m].l2r.end()) {
+				item.updateR2L(0, m, m_lItems[m + 1][0].r2l[m_nSentenceLength].getScore() +
+					m_lItems[m_nSentenceLength - m][m].l2r[m_nSentenceLength].getScore() +
+					arcScore(m_nSentenceLength, m));
+			}
 		}
 	}
 
@@ -424,13 +472,10 @@ namespace emptyeisnergc2nd {
 			StateItem & item = m_lItems[std::get<1>(span)][std::get<3>(span)];
 			int grand = std::get<0>(span);
 			int split = std::get<2>(span);
-			int gid = GRAND_INDEX(grand, item.left, item.right - item.left + 1);
-
-//			item.print(gid);
 
 			switch (item.type) {
 			case JUX:
-				split = item.jux[gid].getSplit();
+				split = item.jux[grand].getSplit();
 
 				m_lItems[split - item.left + 1][item.left].type = L2R;
 				stack.push(std::tuple<int, int, int, int>(grand, split - item.left + 1, -1, item.left));
@@ -438,11 +483,11 @@ namespace emptyeisnergc2nd {
 				stack.push(std::tuple<int, int, int, int>(grand, item.right - split, -1, split + 1));
 				break;
 			case L2R:
-				split = item.l2r[gid].getSplit();
+				split = item.l2r[grand].getSplit();
 
 				if (IS_EMPTY(split)) {
 					item.type = L2R_EMPTY_OUTSIDE;
-					std::get<2>(span) = item.l2r_empty_outside[gid].bestItem().getSplit();
+					std::get<2>(span) = item.l2r_empty_outside[grand].bestItem().getSplit();
 					stack.push(span);
 					break;
 				}
@@ -451,16 +496,16 @@ namespace emptyeisnergc2nd {
 				}
 
 				m_lItems[split - item.left + 1][item.left].type = L2R_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int, int>(grand, split - item.left + 1, m_lItems[split - item.left + 1][item.left].l2r_solid_outside[GRAND_INDEX(grand, item.left, split - item.left + 1)].getSplit(), item.left));
+				stack.push(std::tuple<int, int, int, int>(grand, split - item.left + 1, m_lItems[split - item.left + 1][item.left].l2r_solid_outside[grand].getSplit(), item.left));
 				m_lItems[item.right - split + 1][split].type = L2R;
 				stack.push(std::tuple<int, int, int, int>(item.left, item.right - split + 1, -1, split));
 				break;
 			case R2L:
-				split = item.r2l[gid].getSplit();
+				split = item.r2l[grand].getSplit();
 
 				if (IS_EMPTY(split)) {
 					item.type = R2L_EMPTY_OUTSIDE;
-					std::get<2>(span) = item.r2l_empty_outside[gid].bestItem().getSplit();
+					std::get<2>(span) = item.r2l_empty_outside[grand].bestItem().getSplit();
 					stack.push(span);
 					break;
 				}
@@ -469,7 +514,7 @@ namespace emptyeisnergc2nd {
 				}
 
 				m_lItems[item.right - split + 1][split].type = R2L_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int, int>(grand, item.right - split + 1, m_lItems[item.right - split + 1][split].r2l_solid_outside[GRAND_INDEX(grand, split, item.right - split + 1)].getSplit(), split));
+				stack.push(std::tuple<int, int, int, int>(grand, item.right - split + 1, m_lItems[item.right - split + 1][split].r2l_solid_outside[grand].getSplit(), split));
 				m_lItems[split - item.left + 1][item.left].type = R2L;
 				stack.push(std::tuple<int, int, int, int>(item.right, split - item.left + 1, -1, item.left));
 				break;
@@ -477,7 +522,7 @@ namespace emptyeisnergc2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.l2r_solid_both[gid].getSplit();
+				split = item.l2r_solid_both[grand].getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
 
 				if (split == item.left) {
@@ -495,7 +540,7 @@ namespace emptyeisnergc2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.r2l_solid_both[gid].getSplit();
+				split = item.r2l_solid_both[grand].getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.right == m_nSentenceLength ? -1 : item.right, item.left));
 
 				if (split == item.right) {
@@ -513,13 +558,13 @@ namespace emptyeisnergc2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.l2r_empty_inside[gid].getSplit();
+				split = item.l2r_empty_inside[grand].getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
 
 				split = DECODE_EMPTY_POS(split);
 
 				m_lItems[split - item.left + 1][item.left].type = L2R_EMPTY_OUTSIDE;
-				stack.push(std::tuple<int, int, int, int>(grand, split - item.left + 1, item.l2r_empty_inside[gid].getInnerSplit(), item.left));
+				stack.push(std::tuple<int, int, int, int>(grand, split - item.left + 1, item.l2r_empty_inside[grand].getInnerSplit(), item.left));
 				m_lItems[item.right - split][split + 1].type = R2L;
 				stack.push(std::tuple<int, int, int, int>(item.left, item.right - split, -1, split + 1));
 				break;
@@ -527,13 +572,13 @@ namespace emptyeisnergc2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.r2l_empty_inside[gid].getSplit();
+				split = item.r2l_empty_inside[grand].getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.right, item.left));
 
 				split = DECODE_EMPTY_POS(split);
 
 				m_lItems[item.right - split][split + 1].type = R2L_EMPTY_OUTSIDE;
-				stack.push(std::tuple<int, int, int, int>(grand, item.right - split, item.r2l_empty_inside[gid].getInnerSplit(), split + 1));
+				stack.push(std::tuple<int, int, int, int>(grand, item.right - split, item.r2l_empty_inside[grand].getInnerSplit(), split + 1));
 				m_lItems[split - item.left + 1][item.left].type = L2R;
 				stack.push(std::tuple<int, int, int, int>(item.right, split - item.left + 1, -1, item.left));
 				break;
@@ -570,7 +615,7 @@ namespace emptyeisnergc2nd {
 					break;
 				}
 
-				split = item.l2r_solid_outside[gid].getSplit();
+				split = item.l2r_solid_outside[grand].getSplit();
 				item.type = IS_EMPTY(split) ? L2R_EMPTY_INSIDE : L2R_SOLID_BOTH;
 				stack.push(span);
 				break;
@@ -579,7 +624,7 @@ namespace emptyeisnergc2nd {
 					break;
 				}
 
-				split = item.r2l_solid_outside[gid].getSplit();
+				split = item.r2l_solid_outside[grand].getSplit();
 				item.type = IS_EMPTY(split) ? R2L_EMPTY_INSIDE : R2L_SOLID_BOTH;
 				stack.push(span);
 				break;
@@ -613,9 +658,7 @@ namespace emptyeisnergc2nd {
 				}
 			}
 		}
-		//std::cout << "positive" << std::endl;
 		for (const auto & arc : positiveArcs) {
-			//std::cout << arc << std::endl;
 			if (arc.first() != -1) {
 				getOrUpdateGrandScore(arc.first(), arc.second(), arc.forth(), 1);
 				getOrUpdateGrandScore(arc.first(), arc.second(), arc.third(), arc.forth(), 1);
@@ -623,9 +666,7 @@ namespace emptyeisnergc2nd {
 			getOrUpdateSiblingScore(arc.second(), arc.third(), arc.forth(), 1);
 			getOrUpdateSiblingScore(arc.second(), arc.forth(), 1);
 		}
-		//std::cout << "negative" << std::endl;
 		for (const auto & arc : negativeArcs) {
-			//std::cout << arc << std::endl;
 			if (arc.first() != -1) {
 				getOrUpdateGrandScore(arc.first(), arc.second(), arc.forth(), -1);
 				getOrUpdateGrandScore(arc.first(), arc.second(), arc.third(), arc.forth(), -1);
@@ -674,15 +715,6 @@ namespace emptyeisnergc2nd {
 
 	void DepParser::goldCheck() {
 		Arcs2TriArcs(m_vecTrainArcs, m_vecTrainTriArcs);
-//		for (const auto & arc : m_vecCorrectArcs) {
-//			std::cout << arc.first() << " -> " << arc.second() << std::endl;
-//		}
-//		std::cout << std::endl;
-//		for (const auto & arc : m_vecTrainArcs) {
-//			std::cout << arc.first() << " -> " << arc.second() << std::endl;
-//		}
-//		std::cout << "train arcs size is " << m_vecCorrectArcs.size() << std::endl;
-//		std::cout << "train tri arcs size is " << m_vecCorrectTriArcs.size() << std::endl;
 		std::cout << "total score is " <<  m_lItems[m_nSentenceLength + 1][0].r2l[0].getScore() << std::endl; //debug
 		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[m_nSentenceLength + 1][0].r2l[0].getScore() / GOLD_POS_SCORE != 2 * m_vecCorrectArcs.size() - 1 + 2 * m_vecCorrectTriArcs.size() - 2) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
@@ -711,9 +743,7 @@ namespace emptyeisnergc2nd {
 
 	const tscore & DepParser::arcScore(const int & p, const int & c) {
 		if (m_nState == ParserState::GOLDTEST) {
-//			auto start_time = GetTickCount();
 			m_nRetval = m_setArcGoldScore.find(BiGram<int>(p, c)) == m_setArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			m_tGetScoreTime += GetTickCount() - start_time;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
@@ -723,9 +753,7 @@ namespace emptyeisnergc2nd {
 
 	const tscore & DepParser::biSiblingArcScore(const int & p, const int & c, const int & c2) {
 		if (m_nState == ParserState::GOLDTEST) {
-//			auto start_time = GetTickCount();
 			m_nRetval = m_setBiSiblingArcGoldScore.find(TriGram<int>(p, c, c2)) == m_setBiSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			m_tGetScoreTime += GetTickCount() - start_time;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
@@ -735,9 +763,7 @@ namespace emptyeisnergc2nd {
 
 //	const tscore & DepParser::triSiblingArcScore(const int & p, const int & c, const int & c2, const int & c3) {
 //		if (m_nState == ParserState::GOLDTEST) {
-////			auto start_time = GetTickCount();
 //			m_nRetval = m_setTriSiblingArcGoldScore.find(QuarGram<int>(p, c, c2, c3)) == m_setTriSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-////			m_tGetScoreTime += GetTickCount() - start_time;
 //			return m_nRetval;
 //		}
 //		m_nRetval = 0;
@@ -747,9 +773,7 @@ namespace emptyeisnergc2nd {
 
 	const tscore & DepParser::grandSiblingArcScore(const int & g, const int & p, const int & c) {
 		if (m_nState == ParserState::GOLDTEST) {
-//			auto start_time = GetTickCount();
 			m_nRetval = m_setGrandSiblingArcGoldScore.find(TriGram<int>(g, p, c)) == m_setGrandSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			m_tGetScoreTime += GetTickCount() - start_time;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
@@ -759,9 +783,7 @@ namespace emptyeisnergc2nd {
 
 	const tscore & DepParser::grandBiSiblingArcScore(const int & g, const int & p, const int & c, const int & c2) {
 		if (m_nState == ParserState::GOLDTEST) {
-//			auto start_time = GetTickCount();
 			m_nRetval = m_setGrandBiSiblingArcGoldScore.find(QuarGram<int>(g, p, c, c2)) == m_setGrandBiSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			m_tGetScoreTime += GetTickCount() - start_time;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
@@ -771,9 +793,7 @@ namespace emptyeisnergc2nd {
 
 //	const tscore & DepParser::grandTriSiblingArcScore(const int & g, const int & p, const int & c, const int & c2, const int & c3) {
 //		if (m_nState == ParserState::GOLDTEST) {
-////			auto start_time = GetTickCount();
 //			m_nRetval = m_setGrandTriSiblingArcGoldScore.find(QuinGram<int>(g, p, c, c2, c3)) == m_setGrandTriSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-////			m_tGetScoreTime += GetTickCount() - start_time;
 //			return m_nRetval;
 //		}
 //		m_nRetval = 0;
@@ -781,66 +801,192 @@ namespace emptyeisnergc2nd {
 //		return m_nRetval;
 //	}
 
-	void DepParser::initArcScore(const int & d) {
-		for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
-			if (d > 1) {
-				m_lArcScore[ENCODE_L2R(i)] = arcScore(i, i + d - 1);
-				m_lArcScore[ENCODE_R2L(i)] = arcScore(i + d - 1, i);
-			}
-			m_abFirstOrderEmptyScore[ENCODE_L2R(i)].clear();
-			m_abFirstOrderEmptyScore[ENCODE_R2L(i)].clear();
+	void DepParser::initArcScore() {
+		m_vecArcScore =
+			std::vector<std::vector<tscore>>(
+			m_nSentenceLength + 1,
+			std::vector<tscore>(m_nSentenceLength));
+		m_vecFirstOrderEmptyScore =
+				decltype(m_vecFirstOrderEmptyScore)(
+						m_nSentenceLength,
+						std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>(m_nSentenceLength));
+		for (int d = 1; d <= m_nSentenceLength; ++d) {
+			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
+				if (d > 1) {
+					m_vecArcScore[i][i + d - 1] = arcScore(i, i + d - 1);
+					m_vecArcScore[i + d - 1][i] = arcScore(i + d - 1, i);
+				}
 
-			for (int t = TEmptyTag::start(), max_t = TEmptyTag::end(); t < max_t; ++t) {
-				if (m_nState == ParserState::GOLDTEST || testEmptyNode(i, ENCODE_EMPTY(i + d, t))) {
-					tscore score = arcScore(i, ENCODE_EMPTY(i + d, t));
-					if (score != 0) {
-						m_abFirstOrderEmptyScore[ENCODE_L2R(i)].insertItem(ScoreWithType(t, score));
+				for (int t = TEmptyTag::start(), max_t = TEmptyTag::end(); t < max_t; ++t) {
+					if (m_nState == ParserState::GOLDTEST || testEmptyNode(i, ENCODE_EMPTY(i + d, t))) {
+						tscore score = arcScore(i, ENCODE_EMPTY(i + d, t));
+						if (score != 0) {
+							m_vecFirstOrderEmptyScore[i][i + d - 1].insertItem(ScoreWithType(t, score));
+						}
+					}
+					if (m_nState == ParserState::GOLDTEST || testEmptyNode(i + d - 1, ENCODE_EMPTY(i, t))) {
+						tscore score = arcScore(i + d - 1, ENCODE_EMPTY(i, t));
+						if (score != 0) {
+							m_vecFirstOrderEmptyScore[i + d - 1][i].insertItem(ScoreWithType(t, score));
+						}
 					}
 				}
-				if (m_nState == ParserState::GOLDTEST || testEmptyNode(i + d - 1, ENCODE_EMPTY(i, t))) {
-					tscore score = arcScore(i + d - 1, ENCODE_EMPTY(i, t));
-					if (score != 0) {
-						m_abFirstOrderEmptyScore[ENCODE_R2L(i)].insertItem(ScoreWithType(t, score));
+			}
+		}
+		for (int i = 0; i < m_nSentenceLength; ++i) {
+			m_vecArcScore[m_nSentenceLength][i] = arcScore(m_nSentenceLength, i);
+		}
+	}
+
+	void DepParser::initBiSiblingArcScore() {
+		m_vecBiSiblingScore =
+			std::vector<std::vector<std::vector<tscore>>>(
+			m_nSentenceLength + 1,
+			std::vector<std::vector<tscore>>(
+			m_nSentenceLength,
+			std::vector<tscore>(m_nSentenceLength + 1)));
+		for (int d = 2; d <= m_nSentenceLength; ++d) {
+			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
+				int l = i + d - 1;
+				m_vecBiSiblingScore[i][l][i] = biSiblingArcScore(i, -1, l);
+				m_vecBiSiblingScore[l][i][l] = biSiblingArcScore(l, -1, i);
+				for (int k = i + 1, l = i + d - 1; k < l; ++k) {
+					m_vecBiSiblingScore[i][l][k] = biSiblingArcScore(i, k, l);
+					m_vecBiSiblingScore[l][i][k] = biSiblingArcScore(l, k, i);
+				}
+			}
+		}
+		for (int j = 0; j < m_nSentenceLength; ++j) {
+			m_vecBiSiblingScore[m_nSentenceLength][j][m_nSentenceLength] = biSiblingArcScore(m_nSentenceLength, -1, j);
+		}
+	}
+
+	void DepParser::initGrandSiblingArcScore() {
+		m_vecGrandChildScore =
+			std::vector<std::vector<std::vector<tscore>>>(
+			m_nSentenceLength,
+			std::vector<std::vector<tscore>>(
+			m_nSentenceLength,
+			std::vector<tscore>(m_nSentenceLength + 1)));
+		for (int i = 0; i < m_nSentenceLength; ++i) {
+			for (int j = 0; j < m_nSentenceLength; ++j) {
+				if (j != i) {
+					for (int g = 0; g <= m_nSentenceLength; ++g) {
+						if (g != i && g != j) {
+							m_vecGrandChildScore[i][j][g] = grandSiblingArcScore(g, i, j);
+						}
 					}
 				}
 			}
 		}
 	}
 
-	void DepParser::initBiSiblingArcScore(const int & d) {
-		for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
-			int l = i + d - 1;
-			m_lBiSiblingArcScore[ENCODE_2ND_L2R(i, i)] = biSiblingArcScore(i, -1, l);
-			m_lBiSiblingArcScore[ENCODE_2ND_R2L(i, i)] = biSiblingArcScore(l, -1, i);
-			for (int k = i + 1, l = i + d - 1; k < l; ++k) {
-				m_lBiSiblingArcScore[ENCODE_2ND_L2R(i, k)] = biSiblingArcScore(i, k, l);
-				m_lBiSiblingArcScore[ENCODE_2ND_R2L(i, k)] = biSiblingArcScore(l, k, i);
+	bool DepParser::initGrands(int level) {
+
+		std::vector<std::vector<int>> vecGrands;
+		m_vecGrandsAsLeft.clear();
+		m_vecGrandsAsRight.clear();
+
+		if (level < 0) {
+			return false;
+		}
+		if (level > GRAND_MAX_LEVEL) {
+			for (int p = 0; p < m_nSentenceLength; ++p) {
+				vecGrands.push_back(std::vector<int>());
+				for (int h = 0; h <= m_nSentenceLength; ++h) {
+					if (h != p) {
+						vecGrands[p].push_back(h);
+					}
+				}
+			}
+			m_vecGrandsAsLeft = vecGrands;
+			m_vecGrandsAsRight = vecGrands;
+			return true;
+		}
+
+		std::unordered_map<int, std::set<int>> grands;
+		for (int p = 0; p < m_nSentenceLength; ++p) {
+			GrandAgendaU gaArc;
+			GrandAgendaB gaGC;
+			GrandAgendaB gaBiArc;
+			for (int h = 0; h <= m_nSentenceLength; ++h) {
+				if (h != p) {
+					gaArc.insertItem(ScoreWithSplit(h, m_vecArcScore[h][p]));
+					gaBiArc.insertItem(ScoreWithBiSplit(h, h, m_vecBiSiblingScore[h][p][h]));
+					for (int m = 0; m < m_nSentenceLength; ++m) {
+						if (m != p && m != h) {
+							gaGC.insertItem(ScoreWithBiSplit(h, m, m_vecGrandChildScore[p][m][h]));
+							if (h != m_nSentenceLength) {
+								gaBiArc.insertItem(ScoreWithBiSplit(h, m, m_vecBiSiblingScore[h][p][m]));
+							}
+						}
+					}
+				}
+			}
+			// sort items
+			gaArc.sortItems();
+			gaGC.sortItems();
+			int size = (GRAND_AGENDA_SIZE << level);
+			int i = 0;
+			// only use top 'size' item
+			for (const auto & agenda : gaArc) {
+				if (agenda->getScore() > 0) {
+					grands[p].insert(agenda->getSplit());
+				}
+				else {
+					break;
+				}
+				if (++i >= size) {
+					break;
+				}
+			}
+			i = 0;
+			for (const auto & agenda : gaGC) {
+				if (agenda->getScore() > 0) {
+					grands[p].insert(agenda->getSplit());
+					grands[agenda->getInnerSplit()].insert(p);
+				}
+				else {
+					break;
+				}
+				if (++i >= size) {
+					break;
+				}
+			}
+			i = 0;
+			for (const auto & agenda : gaBiArc) {
+				if (agenda->getScore() > 0) {
+					grands[p].insert(agenda->getSplit());
+					if (agenda->getInnerSplit() != agenda->getSplit()) {
+						grands[agenda->getInnerSplit()].insert(agenda->getSplit());
+					}
+				}
+				else {
+					break;
+				}
+				if (++i >= size) {
+					break;
+				}
+			}
+			vecGrands.push_back(std::vector<int>());
+		}
+		std::set<std::pair<int, int>> goldArcs;
+		// generate grand candidate
+		for (const auto & grand : grands) {
+			for (const auto & g : grand.second) {
+				vecGrands[grand.first].push_back(g);
+				goldArcs.insert(std::pair<int, int>(g, grand.first));
 			}
 		}
-	}
+		// check if grand candidate can generate a 'non-projective' tree
+		if (!hasNonProjectiveTree(goldArcs, m_nSentenceLength)) {
+			return false;
+		}
 
-	void DepParser::initGrandSiblingArcScore(const int & d, const int & i) {
-		int l = i + d - 1;
-		int g = 0;
-		do {
-			if (g == i) {
-				g = l + 1;
-			}
-			m_lGrandSiblingArcScore[ENCODE_L2R(g)] = grandSiblingArcScore(g, i, l);
-			m_lGrandSiblingArcScore[ENCODE_R2L(g)] = grandSiblingArcScore(g, l, i);
-		} while (++g <= m_nSentenceLength);
-	}
+		m_vecGrandsAsLeft = vecGrands;
+		m_vecGrandsAsRight = vecGrands;
 
-	void DepParser::initGrandBiSiblingArcScore(const int & d, const int & i, const int & k) {
-		int l = i + d - 1;
-		int g = 0;
-		do {
-			if (g == i) {
-				g = l + 1;
-			}
-			m_lGrandBiSiblingArcScore[ENCODE_L2R(g)] = grandBiSiblingArcScore(g, i, k, l);
-			m_lGrandBiSiblingArcScore[ENCODE_R2L(g)] = grandBiSiblingArcScore(g, l, k, i);
-		} while (++g <= m_nSentenceLength);
+		return true;
 	}
 
 	void DepParser::readEmptySentAndArcs(const DependencyTree & correct) {
