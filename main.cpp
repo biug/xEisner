@@ -2,10 +2,12 @@
 #include <cstring>
 
 #include "common/parser/graph_dp/eisner/eisner_run.h"
+#include "common/parser/graph_dp/eisner2nd/eisner2nd_run.h"
 #include "common/parser/graph_dp/eisner3rd/eisner3rd_run.h"
 #include "common/parser/graph_dp/eisnergc/eisnergc_run.h"
 #include "common/parser/graph_dp/eisnergc2nd/eisnergc2nd_run.h"
 #include "common/parser/graph_dp/eisnergc3rd/eisnergc3rd_run.h"
+#include "common/parser/graph_dp/emptyeisner2nd/emptyeisner2nd_run.h"
 #include "common/parser/graph_dp/emptyeisner3rd/emptyeisner3rd_run.h"
 #include "common/parser/graph_dp/emptyeisnergc2nd/emptyeisnergc2nd_run.h"
 #include "common/parser/graph_dp/emptyeisnergc3rd/emptyeisnergc3rd_run.h"
@@ -19,6 +21,9 @@ int main(int argc, char * argv[]) {
 	if (strcmp(argv[2], "eisner") == 0) {
 		run.reset(new eisner::Run());
 	}
+	else if (strcmp(argv[2], "eisner2nd") == 0) {
+		run.reset(new eisner2nd::Run());
+	}
 	else if (strcmp(argv[2], "eisner3rd") == 0) {
 		run.reset(new eisner3rd::Run());
 	}
@@ -30,6 +35,9 @@ int main(int argc, char * argv[]) {
 	}
 	else if (strcmp(argv[2], "eisnergc3rd") == 0) {
 		run.reset(new eisnergc3rd::Run());
+	}
+	else if (strcmp(argv[2], "emptyeisner2nd") == 0) {
+		run.reset(new emptyeisner2nd::Run());
 	}
 	else if (strcmp(argv[2], "emptyeisner3rd") == 0) {
 		run.reset(new emptyeisner3rd::Run());
@@ -52,12 +60,20 @@ int main(int argc, char * argv[]) {
 		std::string next_feature;
 
 		current_feature = next_feature = argv[4];
-		next_feature = next_feature.substr(0, next_feature.rfind(SLASH) + strlen(SLASH)) + argv[2] + "1.feat";
+		next_feature =
+				next_feature.find('#') == std::string::npos ?
+						next_feature.substr(0, next_feature.rfind(SLASH) + strlen(SLASH)) + argv[2] + "1.feat" :
+						next_feature.substr(0, next_feature.find('#')).substr(0, next_feature.substr(0, next_feature.find('#')).rfind(SLASH) + strlen(SLASH)) +
+						argv[2] + "1.feat" + "#" + next_feature.substr(next_feature.find('#') + 1);
 
 		for (int i = 0; i < iteration; ++i) {
+//			std::cout << current_feature << std::endl << next_feature << std::endl;
 			run->train(argv[3], current_feature, next_feature);
 			current_feature = next_feature;
-			next_feature = next_feature.substr(0, next_feature.rfind(argv[2]) + strlen(argv[2])) + std::to_string(i + 2) + ".feat";
+			next_feature = next_feature.find('#') == std::string::npos ?
+					next_feature.substr(0, next_feature.rfind(argv[2]) + strlen(argv[2])) + std::to_string(i + 2) + ".feat" :
+					next_feature.substr(0, next_feature.find('#')).substr(0, next_feature.substr(0, next_feature.find('#')).rfind(argv[2]) + strlen(argv[2])) +
+					std::to_string(i + 2) + ".feat" + "#" + next_feature.substr(next_feature.find('#') + 1);
 		}
 	}
 	else if (strcmp(argv[1], "parse") == 0) {

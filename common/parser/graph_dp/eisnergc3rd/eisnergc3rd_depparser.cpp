@@ -20,7 +20,7 @@ namespace eisnergc3rd {
 		m_nSentenceLength = 0;
 		m_nTrainingRound = 0;
 
-		m_Weight = new Weight(sFeatureInput, sFeatureOut);
+		m_pWeight = new Weight(sFeatureInput, sFeatureOut);
 
 		DepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
 		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
@@ -28,7 +28,7 @@ namespace eisnergc3rd {
 	}
 
 	DepParser::~DepParser() {
-		delete m_Weight;
+		delete m_pWeight;
 	}
 
 	void DepParser::train(const DependencyTree & correct, const int & round) {
@@ -737,7 +737,7 @@ namespace eisnergc3rd {
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
 
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
 		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
@@ -968,7 +968,7 @@ namespace eisnergc3rd {
 	}
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_tag = m_lSentence[p].second();
 
@@ -1007,7 +1007,7 @@ namespace eisnergc3rd {
 	}
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & c3, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_word = m_lSentence[p].first();
 		p_tag = m_lSentence[p].second();
@@ -1142,7 +1142,7 @@ namespace eisnergc3rd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		g_word = m_lSentence[g].first();
 		g_tag = m_lSentence[g].second();
@@ -1181,7 +1181,7 @@ namespace eisnergc3rd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		g_word = m_lSentence[g].first();
 		g_tag = m_lSentence[g].second();
@@ -1296,7 +1296,7 @@ namespace eisnergc3rd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & c2, const int & c3, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		g_word = m_lSentence[g].first();
 		g_tag = m_lSentence[g].second();

@@ -7,10 +7,17 @@
 #include <unordered_map>
 
 #include "common/token/token.h"
-#include "common/parser/macros_base.h"
 
 typedef int cscore;
 typedef long long tscore;
+
+#define MAX_SENTENCE_SIZE 256
+#define MAX_SENTENCE_BITS 8
+
+#define MAX_EMPTYTAG_SIZE	32
+
+#define IS_NULL(X)				((X) == -1)
+#define IS_EMPTY(X)				((X) >= MAX_SENTENCE_SIZE)
 
 enum ScoreType {
 	eNonAverage,

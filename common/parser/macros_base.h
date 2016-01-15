@@ -8,9 +8,7 @@
 #include "include/ngram.h"
 #include "common/token/token.h"
 #include "common/token/deplabel.h"
-
-#define MAX_SENTENCE_SIZE 256
-#define MAX_SENTENCE_BITS 8
+#include "include/learning/perceptron/packed_score.h"
 
 #define ROOT_WORD		"-ROOT-"
 #define ROOT_POSTAG		"-ROOT-"
@@ -26,9 +24,6 @@
 
 #define NULL_LABEL		"-NULL-"
 
-#define IS_NULL(X)				((X) == -1)
-#define IS_EMPTY(X)				((X) >= MAX_SENTENCE_SIZE)
-
 #define SENT_SPTOKEN	"/"
 #define SENT_WORD(X)	(std::get<0>(X))
 #define SENT_POSTAG(X)	(std::get<1>(X))
@@ -39,11 +34,21 @@
 #define TREENODE_HEAD(X)			(std::get<1>(X))
 #define TREENODE_LABEL(X)			(std::get<2>(X))
 
+#define ENCODE_L2R(X)			((X) << 1)
+#define ENCODE_R2L(X)			(((X) << 1) + 1)
+#define ENCODE_2ND_L2R(X,Y)		ENCODE_L2R(((X) << MAX_SENTENCE_BITS) | (Y))
+#define ENCODE_2ND_R2L(X,Y)		ENCODE_R2L(((X) << MAX_SENTENCE_BITS) | (Y))
+
+#define ENCODE_EMPTY(X,T)		(((T) << MAX_SENTENCE_BITS) | (X))
+#define DECODE_EMPTY_POS(X)		((X) & ((1 << MAX_SENTENCE_BITS) - 1))
+#define DECODE_EMPTY_TAG(X)		((X) >> MAX_SENTENCE_BITS)
+
 #define GRAPH_LEFT	-1
 #define GRAPH_RIGHT 1
 
 typedef int gtype;
 
+// features type
 typedef unsigned int Unsigned;
 typedef int Int;
 typedef gtype Word;
@@ -92,6 +97,22 @@ typedef QuinGram<gtype> WordPOSTagPOSTagPOSTagInt;
 typedef HexaGram<gtype> POSTagSet5Int;
 typedef HexaGram<gtype> WordPOSTagPOSTagPOSTagPOSTagInt;
 
+// features map define
+typedef PackedScoreMap<WordInt> WordIntMap;
+typedef PackedScoreMap<POSTagInt> POSTagIntMap;
+
+typedef PackedScoreMap<TwoWordsInt> TwoWordsIntMap;
+typedef PackedScoreMap<POSTagSet2Int> POSTagSet2IntMap;
+typedef PackedScoreMap<WordPOSTagInt> WordPOSTagIntMap;
+
+typedef PackedScoreMap<POSTagSet3Int> POSTagSet3IntMap;
+typedef PackedScoreMap<WordWordPOSTagInt> WordWordPOSTagIntMap;
+typedef PackedScoreMap<WordPOSTagPOSTagInt> WordPOSTagPOSTagIntMap;
+
+typedef PackedScoreMap<POSTagSet4Int> POSTagSet4IntMap;
+typedef PackedScoreMap<WordWordPOSTagPOSTagInt> WordWordPOSTagPOSTagIntMap;
+
+// data structure
 typedef std::tuple<ttoken, ttoken> POSTaggedWord;
 typedef std::tuple<POSTaggedWord, int, ttoken> DependencyTreeNode;
 typedef std::pair<DependencyTreeNode, ttoken> DependencyTaggedTreeNode;

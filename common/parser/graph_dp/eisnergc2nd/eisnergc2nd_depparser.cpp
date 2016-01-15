@@ -1,6 +1,7 @@
 #include <set>
 #include <cmath>
 #include <stack>
+#include <cstring>
 #include <algorithm>
 #include <unordered_set>
 
@@ -20,7 +21,19 @@ namespace eisnergc2nd {
 		m_nSentenceLength = 0;
 		m_nTrainingRound = 0;
 
-		m_Weight = new Weight(sFeatureInput, sFeatureOut);
+		std::string sFeature = sFeatureInput.substr(0, sFeatureInput.find('#'));
+		std::string sFeature1st = sFeatureInput.substr(sFeatureInput.find('#') + 1) + "eisner.feat";
+		std::string sFeature2nd = sFeatureInput.substr(sFeatureInput.find('#') + 1) + "eisner2nd.feat";
+		std::string sFeaturegc = sFeatureInput.substr(sFeatureInput.find('#') + 1) + "eisnergc.feat";
+		std::string sFeatureO = sFeatureOut.substr(0, sFeatureOut.find('#'));
+		m_Weight1st = m_nState == ParserState::GOLDTEST ? nullptr : new Weight1st(sFeature1st, sFeature1st);
+		m_Weight2nd = m_nState == ParserState::GOLDTEST ? nullptr : new Weight2nd(sFeature2nd, sFeature2nd);
+		m_Weightgc = m_nState == ParserState::GOLDTEST ? nullptr : new Weightgc(sFeaturegc, sFeaturegc);
+		m_pWeight = m_nState == ParserState::GOLDTEST ? nullptr : new Weight(sFeature, sFeatureO);
+		std::string sItr = sFeatureO.substr(sFeatureO.find("eisnergc2nd") + strlen("eisnergc2nd")).substr(0, 2);
+		if (!isdigit(sItr[1])) sItr = sItr.substr(0, 1);
+		m_nIteration = atoi(sItr.c_str());
+		std::cout << "Iteration " << m_nIteration << std::endl;
 
 		DepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
 		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
@@ -28,7 +41,7 @@ namespace eisnergc2nd {
 	}
 
 	DepParser::~DepParser() {
-		delete m_Weight;
+		delete m_pWeight;
 	}
 
 	void DepParser::train(const DependencyTree & correct, const int & round) {
@@ -461,6 +474,27 @@ namespace eisnergc2nd {
 		}
 	}
 
+	const tscore & DepParser::arc1stScore(const int & p, const int & c) {
+		if (m_nState == ParserState::GOLDTEST) return m_nRetval = 0;
+		m_nRetval = 0;
+		getArcScore(p, c);
+		return m_nRetval;
+	}
+
+	const tscore & DepParser::arc2ndScore(const int & p, const int & c, const int & c2) {
+		if (m_nState == ParserState::GOLDTEST) return m_nRetval = 0;
+		m_nRetval = 0;
+		getArcScore(p, c, c2);
+		return m_nRetval;
+	}
+
+	const tscore & DepParser::arcgcScore(const int & g, const int & p, const int & c) {
+		if (m_nState == ParserState::GOLDTEST) return m_nRetval = 0;
+		m_nRetval = 0;
+		getGrandScore(g, p, c);
+		return m_nRetval;
+	}
+
 	const tscore & DepParser::arcScore(const int & p, const int & c) {
 		if (m_nState == ParserState::GOLDTEST) {
 			m_nRetval = m_setArcGoldScore.find(BiGram<int>(p, c)) == m_setArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
@@ -587,6 +621,7 @@ namespace eisnergc2nd {
 			return true;
 		}
 
+		tscore score;
 		std::unordered_map<int, std::set<int>> grands;
 		for (int p = 0; p < m_nSentenceLength; ++p) {
 			GrandAgendaU gaArc;
@@ -594,13 +629,25 @@ namespace eisnergc2nd {
 			GrandAgendaB gaBiArc;
 			for (int h = 0; h <= m_nSentenceLength; ++h) {
 				if (h != p) {
-					gaArc.insertItem(ScoreWithSplit(h, m_vecArcScore[h][p]));
-					gaBiArc.insertItem(ScoreWithBiSplit(h, h, m_vecBiSiblingScore[h][p][h]));
+					score = (m_nState == ParserState::TRAIN ?
+							(arc1stScore(h, p) + m_vecArcScore[h][p] * 8237 * 20) :
+							(arc1stScore(h, p) * m_nIteration + m_vecArcScore[h][p] * 20));
+					if (score >= 0) gaArc.insertItem(ScoreWithSplit(h, score));
+					score = (m_nState == ParserState::TRAIN ?
+							(arc2ndScore(h, -1, p) + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][h]) * 8237 * 20) :
+							(arc2ndScore(h, -1, p) * m_nIteration + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][h]) * 20));
+					if (score >= 0) gaBiArc.insertItem(ScoreWithBiSplit(h, h, score));
 					for (int m = 0; m < m_nSentenceLength; ++m) {
 						if (m != p && m != h) {
+							score = (m_nState == ParserState::TRAIN ?
+									(arcgcScore(h, p, m) + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][m]) * 8237 * 20) :
+									(arcgcScore(h, p, m) * m_nIteration + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][m]) * 20));
 							gaGC.insertItem(ScoreWithBiSplit(h, m, m_vecGrandChildScore[p][m][h]));
 							if (h != m_nSentenceLength) {
-								gaBiArc.insertItem(ScoreWithBiSplit(h, m, m_vecBiSiblingScore[h][p][m]));
+								score = (m_nState == ParserState::TRAIN ?
+										(arc2ndScore(h, m, p) + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][m]) * 8237 * 20) :
+										(arc2ndScore(h, m, p) * m_nIteration + (m_vecArcScore[h][p] + m_vecBiSiblingScore[h][p][m]) * 20));
+								gaBiArc.insertItem(ScoreWithBiSplit(h, m, score));
 							}
 						}
 					}
@@ -672,9 +719,761 @@ namespace eisnergc2nd {
 		return true;
 	}
 
+	void DepParser::getArcScore(const int & p, const int & c) {
+
+		Weight1st * cweight = m_Weight1st;
+
+		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
+		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
+		c_1_tag = c > 0 ? m_lSentence[c - 1].second() : start_taggedword.second();
+		c1_tag = c < m_nSentenceLength - 1 ? m_lSentence[c + 1].second() : end_taggedword.second();
+
+		p_word = m_lSentence[p].first();
+		p_tag = m_lSentence[p].second();
+
+		c_word = m_lSentence[c].first();
+		c_tag = m_lSentence[c].second();
+
+		m_nDis = encodeLinkDistanceOrDirection(p, c, false);
+		m_nDir = encodeLinkDistanceOrDirection(p, c, true);
+
+		word_int.refer(p_word, 0);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(p_tag, 0);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(p_word, p_tag, 0);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_int.refer(c_word, 0);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(c_tag, 0);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c_word, c_tag, 0);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_tag_int.refer(p_word, c_word, p_tag, c_tag, 0);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(p_word, p_tag, c_tag, 0);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(c_word, p_tag, c_tag, 0);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c_word, p_tag, 0);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c_word, c_tag, 0);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_int.refer(p_word, c_word, 0);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDis);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDir);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_int.refer(p_tag, c_tag, 0);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_1_tag, c_tag, m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, empty_taggedword.second(), c_1_tag, c_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		for (int b = (int)std::fmin(p, c) + 1, e = (int)std::fmax(p, c); b < e; ++b) {
+			b_tag = m_lSentence[b].second();
+			tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.refer(p_tag, b_tag, c_tag, m_nDis);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.refer(p_tag, b_tag, c_tag, m_nDir);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		}
+	}
+
+	void DepParser::getArcScore(const int & p, const int & c, const int & c2) {
+		Weight2nd * cweight = m_Weight2nd;
+
+		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
+		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
+		c_1_tag = c2 > 0 ? m_lSentence[c2 - 1].second() : start_taggedword.second();
+		c1_tag = c2 < m_nSentenceLength - 1 ? m_lSentence[c2 + 1].second() : end_taggedword.second();
+
+		p_word = m_lSentence[p].first();
+		p_tag = m_lSentence[p].second();
+
+		c_word = IS_NULL(c) ? empty_taggedword.first() : m_lSentence[c].first();
+		c_tag = IS_NULL(c) ? empty_taggedword.second() : m_lSentence[c].second();
+
+		c2_word = m_lSentence[c2].first();
+		c2_tag = m_lSentence[c2].second();
+
+		m_nDis = encodeLinkDistanceOrDirection(p, c2, false);
+		m_nDir = encodeLinkDistanceOrDirection(p, c2, true);
+
+		word_int.refer(p_word, 0);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(p_tag, 0);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(p_word, p_tag, 0);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_int.refer(c2_word, 0);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(c2_tag, 0);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c2_word, c2_tag, 0);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_tag_int.refer(p_word, c2_word, p_tag, c2_tag, 0);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(p_word, p_tag, c2_tag, 0);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(c2_word, p_tag, c2_tag, 0);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c2_word, p_tag, 0);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c2_word, c2_tag, 0);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_int.refer(p_word, c2_word, 0);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDis);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDir);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_int.refer(p_tag, c2_tag, 0);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, p_1_tag, p_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, c2_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c2_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c2_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_1_tag, c2_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c_1_tag, c2_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c2_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c2_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, empty_taggedword.second(), c_1_tag, c2_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p_tag, c_1_tag, c2_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c2_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c2_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		for (int b = (int)std::fmin(p, c2) + 1, e = (int)std::fmax(p, c2); b < e; ++b) {
+			b_tag = m_lSentence[b].second();
+			tag_tag_tag_int.refer(p_tag, b_tag, c2_tag, 0);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.referLast(m_nDis);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.referLast(m_nDir);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		}
+
+		tag_tag_int.refer(c_tag, c2_tag, 0);
+		cweight->m_mapC1pC2p.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDir);
+		cweight->m_mapC1pC2p.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_int.refer(p_tag, c_tag, c2_tag, 0);
+		cweight->m_mapPpC1pC2p.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpC1pC2p.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_int.refer(c_word, c2_word, 0);
+		cweight->m_mapC1wC2w.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDir);
+		cweight->m_mapC1wC2w.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c_word, c2_tag, 0);
+		cweight->m_mapC1wC2p.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapC1wC2p.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c2_word, c_tag, 0);
+		cweight->m_mapC1wC2p.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapC1wC2p.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+	}
+
+	void DepParser::getGrandScore(const int & g, const int & p, const int & c) {
+		Weightgc * cweight = m_Weightgc;
+
+		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
+		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
+		c_1_tag = c > 0 ? m_lSentence[c - 1].second() : start_taggedword.second();
+		c1_tag = c < m_nSentenceLength - 1 ? m_lSentence[c + 1].second() : end_taggedword.second();
+
+		g_word = m_lSentence[g].first();
+		g_tag = m_lSentence[g].second();
+
+		p_word = m_lSentence[p].first();
+		p_tag = m_lSentence[p].second();
+
+		c_word = m_lSentence[c].first();
+		c_tag = m_lSentence[c].second();
+
+		m_nDis = encodeLinkDistanceOrDirection(p, c, false);
+		m_nDir = encodeLinkDistanceOrDirection(p, c, true);
+
+		word_int.refer(p_word, 0);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapPw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(p_tag, 0);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapPp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(p_word, p_tag, 0);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_int.refer(c_word, 0);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDis);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_int.referLast(m_nDir);
+		cweight->m_mapCw.getOrUpdateScore(m_nRetval, word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_int.refer(c_tag, 0);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDis);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_int.referLast(m_nDir);
+		cweight->m_mapCp.getOrUpdateScore(m_nRetval, tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c_word, c_tag, 0);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDis);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapCwp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_tag_int.refer(p_word, c_word, p_tag, c_tag, 0);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCwp.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(p_word, p_tag, c_tag, 0);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_tag_int.refer(c_word, p_tag, c_tag, 0);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCwp.getOrUpdateScore(m_nRetval, word_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c_word, p_tag, 0);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwpCw.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_tag_int.refer(p_word, c_word, c_tag, 0);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDis);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_tag_int.referLast(m_nDir);
+		cweight->m_mapPwCwp.getOrUpdateScore(m_nRetval, word_word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_int.refer(p_word, c_word, 0);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDis);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDir);
+		cweight->m_mapPwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_int.refer(p_tag, c_tag, 0);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, p_1_tag, p_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p1_tag, c_tag, c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, empty_taggedword.second(), c_tag, c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, empty_taggedword.second(), c1_tag, 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, empty_taggedword.second(), c_1_tag, c_tag, 0);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1Cp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(empty_taggedword.second(), p_tag, c_1_tag, c_tag, 0);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCp_1Cp.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPpPp1CpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, empty_taggedword.second(), 0);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDis);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapPp_1PpCpCp1.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		for (int b = (int)std::fmin(p, c) + 1, e = (int)std::fmax(p, c); b < e; ++b) {
+			b_tag = m_lSentence[b].second();
+			tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.referLast(m_nDis);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+			tag_tag_tag_int.referLast(m_nDir);
+			cweight->m_mapPpBpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		}
+
+		m_nDir = encodeLinkDistanceOrDirection(g, p, true);
+
+		tag_tag_tag_int.refer(g_tag, p_tag, c_tag, 0);
+		cweight->m_mapGpPpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_tag_int.referLast(m_nDir);
+		cweight->m_mapGpPpCp.getOrUpdateScore(m_nRetval, tag_tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		tag_tag_int.refer(g_tag, c_tag, 0);
+		cweight->m_mapGpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		tag_tag_int.referLast(m_nDir);
+		cweight->m_mapGpCp.getOrUpdateScore(m_nRetval, tag_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_word_int.refer(g_word, c_word, 0);
+		cweight->m_mapGwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_word_int.referLast(m_nDir);
+		cweight->m_mapGwCw.getOrUpdateScore(m_nRetval, word_word_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(g_word, c_tag, 0);
+		cweight->m_mapGwCp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapGwCp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+
+		word_tag_int.refer(c_word, g_tag, 0);
+		cweight->m_mapCwGp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+		word_tag_int.referLast(m_nDir);
+		cweight->m_mapCwGp.getOrUpdateScore(m_nRetval, word_tag_int, ScoreType::eAverage, 0, m_nTrainingRound);
+	}
+
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
 
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
 		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
@@ -905,7 +1704,7 @@ namespace eisnergc2nd {
 	}
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_tag = m_lSentence[p].second();
 
@@ -944,7 +1743,7 @@ namespace eisnergc2nd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		g_word = m_lSentence[g].first();
 		g_tag = m_lSentence[g].second();
@@ -983,7 +1782,7 @@ namespace eisnergc2nd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		g_word = m_lSentence[g].first();
 		g_tag = m_lSentence[g].second();

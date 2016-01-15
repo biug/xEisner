@@ -13,20 +13,6 @@ namespace eisner {
 #define ENCODE_L2R(X)			((X) << 1)
 #define ENCODE_R2L(X)			(((X) << 1) + 1)
 
-	typedef PackedScoreMap<WordInt> WordIntMap;
-	typedef PackedScoreMap<POSTagInt> POSTagIntMap;
-
-	typedef PackedScoreMap<TwoWordsInt> TwoWordsIntMap;
-	typedef PackedScoreMap<POSTagSet2Int> POSTagSet2IntMap;
-	typedef PackedScoreMap<WordPOSTagInt> WordPOSTagIntMap;
-
-	typedef PackedScoreMap<POSTagSet3Int> POSTagSet3IntMap;
-	typedef PackedScoreMap<WordWordPOSTagInt> WordWordPOSTagIntMap;
-	typedef PackedScoreMap<WordPOSTagPOSTagInt> WordPOSTagPOSTagIntMap;
-
-	typedef PackedScoreMap<POSTagSet4Int> POSTagSet4IntMap;
-	typedef PackedScoreMap<WordWordPOSTagPOSTagInt> WordWordPOSTagPOSTagIntMap;
-
 	typedef BiGram<int> Arc;
 	bool operator<(const Arc & arc1, const Arc & arc2);
 }

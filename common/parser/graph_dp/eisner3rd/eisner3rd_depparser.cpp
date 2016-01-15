@@ -18,7 +18,7 @@ namespace eisner3rd {
 
 		m_nSentenceLength = 0;
 
-		m_Weight = new Weight(sFeatureInput, sFeatureOut);
+		m_pWeight = new Weight(sFeatureInput, sFeatureOut);
 
 		for (int i = 0; i < MAX_SENTENCE_SIZE; ++i) {
 			m_lItems[1][i].init(i, i);
@@ -30,7 +30,7 @@ namespace eisner3rd {
 	}
 
 	DepParser::~DepParser() {
-		delete m_Weight;
+		delete m_pWeight;
 	}
 
 	void DepParser::train(const DependencyTree & correct, const int & round) {
@@ -389,7 +389,7 @@ namespace eisner3rd {
 
 	void DepParser::getOrUpdateStackScore(const int & p, const int & c, const int & amount) {
 
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_1_tag = p > 0 ? m_lSentence[p - 1].second() : start_taggedword.second();
 		p1_tag = p < m_nSentenceLength - 1 ? m_lSentence[p + 1].second() : end_taggedword.second();
@@ -620,7 +620,7 @@ namespace eisner3rd {
 	}
 
 	void DepParser::getOrUpdateStackScore(const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_tag = m_lSentence[p].second();
 
@@ -659,7 +659,7 @@ namespace eisner3rd {
 	}
 
 	void DepParser::getOrUpdateStackScore(const int & p, const int & c, const int & c2, const int & c3, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		p_word = m_lSentence[p].first();
 		p_tag = m_lSentence[p].second();

@@ -5,8 +5,9 @@
 #include <unordered_set>
 
 #include "eisnergc_state.h"
-#include "eisnergc_weight.h"
 #include "common/parser/depparser_base.h"
+#include "common/parser/weight1st.h"
+#include "common/parser/weightgc.h"
 
 namespace eisnergc {
 	class DepParser : public DepParserBase {
@@ -14,6 +15,10 @@ namespace eisnergc {
 		static WordPOSTag empty_taggedword;
 		static WordPOSTag start_taggedword;
 		static WordPOSTag end_taggedword;
+
+		int m_nIteration;
+		Weightgc *m_pWeight;
+		Weight1st *m_pWeight1st;
 
 		StateItem m_lItems[MAX_SENTENCE_SIZE][MAX_SENTENCE_SIZE];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE];
@@ -57,12 +62,14 @@ namespace eisnergc {
 		void generate(DependencyTree * retval, const DependencyTree & correct);
 		void goldCheck();
 
+		const tscore & arc1stScore(const int & h, const int & m);
 		const tscore & arcScore(const int & h, const int & m);
 		const tscore & biArcScore(const int & g, const int & h, const int & m);
 		void initArcScore();
 		void initGrandChildScore();
 		bool initGrands(int level);
 
+		void get1stStackScore(const int & h, const int & m);
 		void getOrUpdateStackScore(const int & h, const int & m, const int & amount);
 		void getOrUpdateStackScore(const int & g, const int & h, const int & m, const int & amount);
 
@@ -76,6 +83,12 @@ namespace eisnergc {
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
 		void work(DependencyTree * retval, const DependencyTree & correct);
+
+		void finishtraining() {
+			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
+			m_pWeight->saveScores();
+			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
+		}
 	};
 }
 

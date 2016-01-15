@@ -6,6 +6,9 @@
 
 #include "eisnergc2nd_state.h"
 #include "eisnergc2nd_weight.h"
+#include "eisnergc2nd_1stweight.h"
+#include "eisnergc2nd_2ndweight.h"
+#include "eisnergc2nd_gcweight.h"
 #include "common/parser/depparser_base.h"
 
 namespace eisnergc2nd {
@@ -15,6 +18,13 @@ namespace eisnergc2nd {
 		static WordPOSTag empty_taggedword;
 		static WordPOSTag start_taggedword;
 		static WordPOSTag end_taggedword;
+
+		int m_nIteration;
+
+		Weight *m_pWeight;
+		Weight1st *m_Weight1st;
+		Weight2nd *m_Weight2nd;
+		Weightgc *m_Weightgc;
 
 		std::vector<StateItem> m_lItems[MAX_SENTENCE_SIZE];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE];
@@ -65,6 +75,10 @@ namespace eisnergc2nd {
 		void generate(DependencyTree * retval, const DependencyTree & correct);
 		void goldCheck();
 
+		const tscore & arc1stScore(const int & p, const int & c);
+		const tscore & arc2ndScore(const int & p, const int & c, const int & c2);
+		const tscore & arcgcScore(const int & g, const int & p, const int & c);
+
 		const tscore & arcScore(const int & p, const int & c);
 		const tscore & biSiblingArcScore(const int & p, const int & c, const int & c2);
 		const tscore & grandSiblingArcScore(const int & g, const int & p, const int & c);
@@ -73,6 +87,10 @@ namespace eisnergc2nd {
 		void initBiSiblingArcScore();
 		void initGrandSiblingArcScore();
 		bool initGrands(int level);
+
+		void getArcScore(const int & p, const int & c);
+		void getArcScore(const int & p, const int & c, const int & c2);
+		void getGrandScore(const int & g, const int & p, const int & c);
 
 		void getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & amount);
 		void getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & c2, const int & amount);
@@ -89,6 +107,12 @@ namespace eisnergc2nd {
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
 		void work(DependencyTree * retval, const DependencyTree & correct);
+
+		void finishtraining() {
+			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
+			m_pWeight->saveScores();
+			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
+		}
 	};
 }
 

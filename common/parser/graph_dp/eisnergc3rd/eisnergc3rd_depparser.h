@@ -16,6 +16,8 @@ namespace eisnergc3rd {
 		static WordPOSTag start_taggedword;
 		static WordPOSTag end_taggedword;
 
+		Weight *m_pWeight;
+
 		std::vector<StateItem> m_lItems[MAX_SENTENCE_SIZE];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE];
 		std::vector<Arc> m_vecCorrectArcs;
@@ -95,6 +97,12 @@ namespace eisnergc3rd {
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
 		void work(DependencyTree * retval, const DependencyTree & correct);
+
+		void finishtraining() {
+			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
+			m_pWeight->saveScores();
+			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
+		}
 	};
 }
 

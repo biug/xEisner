@@ -103,9 +103,9 @@ namespace eisnergc3rd {
 		Weight(const std::string & sRead, const std::string & sRecord);
 		~Weight();
 
-		void loadScores() override;
-		void saveScores() const override;
-		void computeAverageFeatureWeights(const int & round) override;
+		void loadScores();
+		void saveScores() const;
+		void computeAverageFeatureWeights(const int & round);
 	};
 }
 

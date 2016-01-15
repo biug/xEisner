@@ -19,7 +19,7 @@ namespace emptyeisnergc2nd {
 
 		m_nSentenceLength = 0;
 
-		m_Weight = new Weight(sFeatureInput, sFeatureOut);
+		m_pWeight = new Weight(sFeatureInput, sFeatureOut);
 
 		DepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
 		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
@@ -27,7 +27,7 @@ namespace emptyeisnergc2nd {
 	}
 
 	DepParser::~DepParser() {
-		delete m_Weight;
+		delete m_pWeight;
 	}
 
 	void DepParser::train(const DependencyTree & correct, const int & round) {
@@ -1046,7 +1046,7 @@ namespace emptyeisnergc2nd {
 
 	bool DepParser::testEmptyNode(const int & p, const int & c) {
 
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		int pos_c = DECODE_EMPTY_POS(c);
 		int tag_c = DECODE_EMPTY_TAG(c);
@@ -1073,7 +1073,7 @@ namespace emptyeisnergc2nd {
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
 
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		int pos_c = DECODE_EMPTY_POS(c);
 		int tag_c = DECODE_EMPTY_TAG(c);
@@ -1318,7 +1318,7 @@ namespace emptyeisnergc2nd {
 	}
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		int pos_c = DECODE_EMPTY_POS(c);
 		int tag_c = DECODE_EMPTY_TAG(c);
@@ -1509,7 +1509,7 @@ namespace emptyeisnergc2nd {
 //	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		int pos_c = DECODE_EMPTY_POS(c);
 		int tag_c = DECODE_EMPTY_TAG(c);
@@ -1552,7 +1552,7 @@ namespace emptyeisnergc2nd {
 	}
 
 	void DepParser::getOrUpdateGrandScore(const int & g, const int & p, const int & c, const int & c2, const int & amount) {
-		Weight * cweight = (Weight*)m_Weight;
+		Weight * cweight = (Weight*)m_pWeight;
 
 		int pos_c = DECODE_EMPTY_POS(c);
 		int tag_c = DECODE_EMPTY_TAG(c);

@@ -1,12 +1,12 @@
-#ifndef _EISNER_WEIGHT_H
-#define _EISNER_WEIGHT_H
+#ifndef _EISNERGC2ND_1STWEIGHT_H
+#define _EISNERGC2ND_1STWEIGHT_H
 
-#include "eisner_macros.h"
+#include "eisnergc2nd_macros.h"
 #include "common/parser/weight_base.h"
 #include "include/learning/perceptron/packed_score.h"
 
-namespace eisner {
-	class Weight : public WeightBase {
+namespace eisnergc2nd {
+	class Weight1st : public WeightBase {
 	public:
 		WordIntMap m_mapPw;
 		POSTagIntMap m_mapPp;
@@ -29,12 +29,12 @@ namespace eisner {
 		POSTagSet4IntMap m_mapPp_1PpCpCp1;
 
 	public:
-		Weight(const std::string & sRead, const std::string & sRecord);
-		~Weight();
+		Weight1st(const std::string & sRead, const std::string & sRecord);
+		~Weight1st();
 
-		void loadScores() override;
-		void saveScores() const override;
-		void computeAverageFeatureWeights(const int & round) override;
+		void loadScores();
+		void saveScores() const;
+		void computeAverageFeatureWeights(const int & round);
 	};
 }
 

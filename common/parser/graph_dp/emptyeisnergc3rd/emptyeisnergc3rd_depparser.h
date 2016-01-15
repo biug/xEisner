@@ -16,6 +16,8 @@ namespace emptyeisnergc3rd {
 		static WordPOSTag start_taggedword;
 		static WordPOSTag end_taggedword;
 
+		Weight *m_pWeight;
+
 		double m_tStartTime;
 		double m_tInitSpaceTime;
 		double m_tGetScoreTime;
@@ -105,6 +107,12 @@ namespace emptyeisnergc3rd {
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
 		void work(DependencyTree * retval, const DependencyTree & correct);
+
+		void finishtraining() {
+			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
+			m_pWeight->saveScores();
+			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
+		}
 
 		void printTime() {
 //			std::cout << "total time tick is " << GetTickCount() - m_tStartTime << std::endl;

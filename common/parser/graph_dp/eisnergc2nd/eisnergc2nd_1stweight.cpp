@@ -1,11 +1,11 @@
 #include <fstream>
 
-#include "eisnergc_weight.h"
+#include "eisnergc2nd_1stweight.h"
 #include "common/token/word.h"
 #include "common/token/pos.h"
 
-namespace eisnergc {
-	Weight::Weight(const std::string & sRead, const std::string & sRecord) :
+namespace eisnergc2nd {
+	Weight1st::Weight1st(const std::string & sRead, const std::string & sRecord) :
 		WeightBase(sRead, sRecord),
 		m_mapPw("m_mapPw"),
 		m_mapPp("m_mapPp"),
@@ -24,20 +24,15 @@ namespace eisnergc {
 		m_mapPpPp1Cp_1Cp("m_mapPpPp1Cp_1Cp"),
 		m_mapPp_1PpCp_1Cp("m_mapPp_1PpCp_1Cp"),
 		m_mapPpPp1CpCp1("m_mapPpPp1CpCp1"),
-		m_mapPp_1PpCpCp1("m_mapPp_1PpCpCp1"),
-		m_mapGpHpMp("m_mapGpHpMp"),
-		m_mapGpMp("m_mapGpMp"),
-		m_mapGwMw("m_mapGwMw"),
-		m_mapGwMp("m_mapGwMp"),
-		m_mapMwGp("m_mapMwGp")
+		m_mapPp_1PpCpCp1("m_mapPp_1PpCpCp1")
 	{
 		loadScores();
 		std::cout << "load complete." << std::endl;
 	}
 
-	Weight::~Weight() = default;
+	Weight1st::~Weight1st() = default;
 
-	void Weight::loadScores() {
+	void Weight1st::loadScores() {
 
 		if (m_sReadPath.empty()) {
 			return;
@@ -73,16 +68,10 @@ namespace eisnergc {
 		input >> m_mapPpPp1CpCp1;
 		input >> m_mapPp_1PpCpCp1;
 
-		input >> m_mapGpHpMp;
-		input >> m_mapGpMp;
-		input >> m_mapGwMw;
-		input >> m_mapGwMp;
-		input >> m_mapMwGp;
-
 		input.close();
 	}
 
-	void Weight::saveScores() const {
+	void Weight1st::saveScores() const {
 
 		if (m_sRecordPath.empty()) {
 			return;
@@ -118,16 +107,10 @@ namespace eisnergc {
 		output << m_mapPpPp1CpCp1;
 		output << m_mapPp_1PpCpCp1;
 
-		output << m_mapGpHpMp;
-		output << m_mapGpMp;
-		output << m_mapGwMw;
-		output << m_mapGwMp;
-		output << m_mapMwGp;
-
 		output.close();
 	}
 
-	void Weight::computeAverageFeatureWeights(const int & round) {
+	void Weight1st::computeAverageFeatureWeights(const int & round) {
 		m_mapPw.computeAverage(round);
 		m_mapPp.computeAverage(round);
 		m_mapPwp.computeAverage(round);
@@ -147,11 +130,5 @@ namespace eisnergc {
 		m_mapPp_1PpCp_1Cp.computeAverage(round);
 		m_mapPpPp1CpCp1.computeAverage(round);
 		m_mapPp_1PpCpCp1.computeAverage(round);
-
-		m_mapGpHpMp.computeAverage(round);
-		m_mapGpMp.computeAverage(round);
-		m_mapGwMw.computeAverage(round);
-		m_mapGwMp.computeAverage(round);
-		m_mapMwGp.computeAverage(round);
 	}
 }

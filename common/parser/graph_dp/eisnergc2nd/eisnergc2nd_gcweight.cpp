@@ -1,11 +1,11 @@
 #include <fstream>
 
-#include "eisner_weight.h"
+#include "eisnergc2nd_gcweight.h"
 #include "common/token/word.h"
 #include "common/token/pos.h"
 
-namespace eisner {
-	Weight::Weight(const std::string & sRead, const std::string & sRecord) :
+namespace eisnergc2nd {
+	Weightgc::Weightgc(const std::string & sRead, const std::string & sRecord) :
 		WeightBase(sRead, sRecord),
 		m_mapPw("m_mapPw"),
 		m_mapPp("m_mapPp"),
@@ -24,15 +24,20 @@ namespace eisner {
 		m_mapPpPp1Cp_1Cp("m_mapPpPp1Cp_1Cp"),
 		m_mapPp_1PpCp_1Cp("m_mapPp_1PpCp_1Cp"),
 		m_mapPpPp1CpCp1("m_mapPpPp1CpCp1"),
-		m_mapPp_1PpCpCp1("m_mapPp_1PpCpCp1")
+		m_mapPp_1PpCpCp1("m_mapPp_1PpCpCp1"),
+		m_mapGpPpCp("m_mapGpHpMp"),
+		m_mapGpCp("m_mapGpMp"),
+		m_mapGwCw("m_mapGwMw"),
+		m_mapGwCp("m_mapGwMp"),
+		m_mapCwGp("m_mapMwGp")
 	{
 		loadScores();
 		std::cout << "load complete." << std::endl;
 	}
 
-	Weight::~Weight() = default;
+	Weightgc::~Weightgc() = default;
 
-	void Weight::loadScores() {
+	void Weightgc::loadScores() {
 
 		if (m_sReadPath.empty()) {
 			return;
@@ -68,10 +73,16 @@ namespace eisner {
 		input >> m_mapPpPp1CpCp1;
 		input >> m_mapPp_1PpCpCp1;
 
+		input >> m_mapGpPpCp;
+		input >> m_mapGpCp;
+		input >> m_mapGwCw;
+		input >> m_mapGwCp;
+		input >> m_mapCwGp;
+
 		input.close();
 	}
 
-	void Weight::saveScores() const {
+	void Weightgc::saveScores() const {
 
 		if (m_sRecordPath.empty()) {
 			return;
@@ -107,10 +118,16 @@ namespace eisner {
 		output << m_mapPpPp1CpCp1;
 		output << m_mapPp_1PpCpCp1;
 
+		output << m_mapGpPpCp;
+		output << m_mapGpCp;
+		output << m_mapGwCw;
+		output << m_mapGwCp;
+		output << m_mapCwGp;
+
 		output.close();
 	}
 
-	void Weight::computeAverageFeatureWeights(const int & round) {
+	void Weightgc::computeAverageFeatureWeights(const int & round) {
 		m_mapPw.computeAverage(round);
 		m_mapPp.computeAverage(round);
 		m_mapPwp.computeAverage(round);
@@ -130,5 +147,11 @@ namespace eisner {
 		m_mapPp_1PpCp_1Cp.computeAverage(round);
 		m_mapPpPp1CpCp1.computeAverage(round);
 		m_mapPp_1PpCpCp1.computeAverage(round);
+
+		m_mapGpPpCp.computeAverage(round);
+		m_mapGpCp.computeAverage(round);
+		m_mapGwCw.computeAverage(round);
+		m_mapGwCp.computeAverage(round);
+		m_mapCwGp.computeAverage(round);
 	}
 }

@@ -12,7 +12,6 @@ enum ParserState {
 
 class DepParserBase {
 protected:
-	WeightBase* m_Weight;
 	int m_nState;
 
 public:
@@ -22,14 +21,8 @@ public:
 
 public:
 	DepParserBase(int nState) :
-		m_Weight(nullptr), m_nState(nState), m_nTotalErrors(0), m_nScoreIndex(nState == ParserState::TRAIN ? ScoreType::eNonAverage : ScoreType::eAverage), m_nTrainingRound(0) {}
-	virtual ~DepParserBase() {};
-
-	virtual void finishtraining() {
-		m_Weight->computeAverageFeatureWeights(m_nTrainingRound);
-		m_Weight->saveScores();
-		std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
-	}
+		m_nState(nState), m_nTotalErrors(0), m_nScoreIndex(nState == ParserState::TRAIN ? ScoreType::eNonAverage : ScoreType::eAverage), m_nTrainingRound(0) {}
+	~DepParserBase() {};
 };
 
 #endif

@@ -5,7 +5,7 @@
 #include <unordered_set>
 
 #include "eisner_state.h"
-#include "eisner_weight.h"
+#include "common/parser/weight1st.h"
 #include "common/parser/depparser_base.h"
 
 namespace eisner {
@@ -15,6 +15,8 @@ namespace eisner {
 		static WordPOSTag start_taggedword;
 		static WordPOSTag end_taggedword;
 
+		Weight1st *m_pWeight;
+
 		StateItem m_lItems[MAX_SENTENCE_SIZE][MAX_SENTENCE_SIZE];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE];
 		std::vector<Arc> m_vecCorrectArcs;
@@ -23,27 +25,6 @@ namespace eisner {
 
 		tscore m_nRetval;
 		tscore m_lFirstOrderScore[MAX_SENTENCE_SIZE << 1];
-
-		int m_nDis, m_nDir;
-
-		Word p_word, c_word;
-		POSTag p_tag, c_tag;
-
-		WordInt word_int;
-		POSTagInt tag_int;
-
-		POSTag p_1_tag, p1_tag, c_1_tag, c1_tag, b_tag;
-
-		TwoWordsInt word_word_int;
-		POSTagSet2Int tag_tag_int;
-		WordPOSTagInt word_tag_int;
-
-		POSTagSet3Int tag_tag_tag_int;
-		WordPOSTagPOSTagInt word_tag_tag_int;
-		WordWordPOSTagInt word_word_tag_int;
-
-		POSTagSet4Int tag_tag_tag_tag_int;
-		WordWordPOSTagPOSTagInt word_word_tag_tag_int;
 
 		std::unordered_set<BiGram<int>> m_setFirstGoldScore;
 
@@ -66,6 +47,12 @@ namespace eisner {
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
 		void work(DependencyTree * retval, const DependencyTree & correct);
+
+		void finishtraining() {
+			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
+			m_pWeight->saveScores();
+			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
+		}
 	};
 }
 
