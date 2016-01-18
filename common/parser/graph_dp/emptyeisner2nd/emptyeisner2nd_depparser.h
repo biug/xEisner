@@ -18,12 +18,6 @@ namespace emptyeisner2nd {
 
 		Weightec2nd *m_pWeight;
 
-		double m_tStartTime;
-		double m_tInitSpaceTime;
-		double m_tGetScoreTime;
-		//double m_tUpdateScoreTime;
-		//double m_tDecodeTime;
-
 		std::vector<StateItem> m_lItems[MAX_SENTENCE_SIZE];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE];
 		WordPOSTag m_lSentenceWithEmpty[MAX_SENTENCE_SIZE];
@@ -71,14 +65,6 @@ namespace emptyeisner2nd {
 			m_pWeight->computeAverageFeatureWeights(m_nTrainingRound);
 			m_pWeight->saveScores();
 			std::cout << "Total number of training errors are: " << m_nTotalErrors << std::endl;
-		}
-
-		void printTime() {
-//			std::cout << "total time tick is " << GetTickCount() - m_tStartTime << std::endl;
-			std::cout << "total malloc time is " << m_tInitSpaceTime << std::endl;
-			std::cout << "total get score time is " << m_tGetScoreTime << std::endl;
-			//std::cout << "total update score time is " << m_tUpdateScoreTime << std::endl;
-			//std::cout << "total decode time is " << m_tDecodeTime << std::endl;
 		}
 	};
 }

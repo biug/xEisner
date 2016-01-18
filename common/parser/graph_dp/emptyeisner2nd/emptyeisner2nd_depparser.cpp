@@ -69,8 +69,8 @@ namespace emptyeisner2nd {
 			for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 				m_lSentence[idx][i].refer(
 					TWord::code(
-					(idx == 0 ? START_WORD : TWord::key(m_lSentence[idx - 1][0].first())) +
-					TEmptyTag::key(i) + SENT_WORD(token)
+					(idx == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[idx - 1][0].second())) +
+					TEmptyTag::key(i) + SENT_POSTAG(token)
 					),
 					TPOSTag::code(TEmptyTag::key(i))
 					);
@@ -82,7 +82,7 @@ namespace emptyeisner2nd {
 		for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 			m_lSentence[idx][i].refer(
 				TWord::code(
-				TWord::key(m_lSentence[idx - 1][0].first()) + TEmptyTag::key(i) + END_WORD
+				TPOSTag::key(m_lSentence[idx - 1][0].second()) + TEmptyTag::key(i) + END_POSTAG
 				),
 				TPOSTag::code(TEmptyTag::key(i))
 				);
@@ -122,11 +122,9 @@ namespace emptyeisner2nd {
 
 		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
 
-			m_lItems[d].reserve(m_nSentenceLength - d + 1);
+			m_lItems[d] = std::vector<StateItem>(m_nSentenceLength - d + 1);
 
 			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
-
-				m_lItems[d].push_back(StateItem());
 
 				int l = i + d - 1;
 				StateItem & item = m_lItems[d][i];
@@ -643,13 +641,13 @@ namespace emptyeisner2nd {
 
 	void DepParser::initArcScore() {
 		m_vecArcScore =
-			std::vector<std::vector<tscore>>(
-			m_nSentenceLength + 1,
-			std::vector<tscore>(m_nSentenceLength));
+			decltype(m_vecArcScore)(
+				m_nSentenceLength + 1,
+				std::vector<tscore>(m_nSentenceLength));
 		m_vecFirstOrderEmptyScore =
-				decltype(m_vecFirstOrderEmptyScore)(
-						m_nSentenceLength,
-						std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>(m_nSentenceLength));
+			decltype(m_vecFirstOrderEmptyScore)(
+				m_nSentenceLength,
+				std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>(m_nSentenceLength));
 		for (int d = 1; d <= m_nSentenceLength; ++d) {
 			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 				if (d > 1) {
@@ -716,9 +714,9 @@ namespace emptyeisner2nd {
 				m_lSentence[m_nSentenceLength][0].refer(TWord::code(TREENODE_WORD(node)), TPOSTag::code(TREENODE_POSTAG(node)));
 				for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 					m_lSentence[m_nSentenceLength][i].refer(
-						TWord::code(
-						(m_nSentenceLength == 0 ? START_WORD : TWord::key(m_lSentence[m_nSentenceLength - 1][0].first())) +
-						TEmptyTag::key(i) + TREENODE_WORD(node)
+							TWord::code(
+						(m_nSentenceLength == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[m_nSentenceLength - 1][0].second())) +
+						TEmptyTag::key(i) + TREENODE_POSTAG(node)
 						),
 						TPOSTag::code(TEmptyTag::key(i))
 						);
@@ -730,7 +728,7 @@ namespace emptyeisner2nd {
 		for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 			m_lSentence[m_nSentenceLength][i].refer(
 				TWord::code(
-				TWord::key(m_lSentence[m_nSentenceLength - 1][0].first()) + TEmptyTag::key(i) + END_WORD
+				TPOSTag::key(m_lSentence[m_nSentenceLength - 1][0].second()) + TEmptyTag::key(i) + END_POSTAG
 				),
 				TPOSTag::code(TEmptyTag::key(i))
 				);
@@ -740,9 +738,9 @@ namespace emptyeisner2nd {
 		for (const auto & node : tcorrect) {
 			if (TREENODE_POSTAG(node) == EMPTYTAG) {
 				m_lSentenceWithEmpty[idxwe++].refer(
-					TWord::code((idx == 0 ? START_WORD : TWord::key(m_lSentence[idx - 1][0].first())) +
+					TWord::code((idx == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[idx - 1][0].second())) +
 					TREENODE_WORD(node) +
-					(idx == m_nSentenceLength ? END_WORD : TWord::key(m_lSentence[idx][0].first()))),
+					(idx == m_nSentenceLength ? END_POSTAG : TPOSTag::key(m_lSentence[idx][0].second()))),
 					TPOSTag::code(TREENODE_WORD(node))
 					);
 				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), ENCODE_EMPTY(idx, TEmptyTag::code(TREENODE_WORD(node)))));
@@ -753,7 +751,6 @@ namespace emptyeisner2nd {
 			}
 		}
 		m_lSentenceWithEmpty[idxwe++].refer(TWord::code(ROOT_WORD), TPOSTag::code(ROOT_POSTAG));
-
 	}
 
 	bool DepParser::testEmptyNode(const int & p, const int & c) {

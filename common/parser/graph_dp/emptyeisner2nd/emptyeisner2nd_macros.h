@@ -8,7 +8,7 @@
 namespace emptyeisner2nd {
 #define OUTPUT_STEP 1000
 
-#define AGENDA_SIZE		4
+#define AGENDA_SIZE		8
 #define MAX_EMPTY_SIZE	17
 
 #define EMPTYTAG			"EMCAT"

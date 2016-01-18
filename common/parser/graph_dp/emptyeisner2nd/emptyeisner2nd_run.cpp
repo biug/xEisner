@@ -90,6 +90,18 @@ namespace emptyeisner2nd {
 		std::ifstream input(sInputFile);
 		if (input) {
 			while (input >> ref_sent) {
+				for (const auto & token : ref_sent) {
+					if (TREENODE_POSTAG(token) == EMPTYTAG) {
+						TEmptyTag::getTokenizer().add(TREENODE_WORD(token));
+					}
+				}
+			}
+			std::cout << "empty tag complete" << std::endl << TEmptyTag::getTokenizer() << std::endl;
+			input.close();
+			input.open(sInputFile);
+		}
+		if (input) {
+			while (input >> ref_sent) {
 				++nRound;
 				parser->train(ref_sent, nRound);
 			}
