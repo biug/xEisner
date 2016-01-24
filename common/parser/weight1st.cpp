@@ -144,15 +144,41 @@ void Weight1st::referRound(const int & nRound) { m_nTrainingRound = nRound; }
 void Weight1st::getOrUpdateArcScore(tscore & retval, const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE]) {
 
 	// elements
-	int dis = encodeLinkDistanceOrDirection(p, c, false);
 	int dir = encodeLinkDistanceOrDirection(p, c, true);
+
+	int dis = 0;
+	if (p > c) {
+		int l = c, r = p;
+		dis = 0;
+		while (l <= r) if (TPOSTag::key(sent[l++].second())[0] != '*') ++dis;
+		--dis;
+		if (dis == 0) dis = 1;
+		else if (dis > 10) dis = 6;
+		else if (dis > 5) dis = 5;
+	}
+	else {
+		int l = p, r = c;
+		dis = 0;
+		while (l <= r) if (TPOSTag::key(sent[l++].second())[0] != '*') --dis;
+		++dis;
+		if (dis == 0) dis = -1;
+		else if (dis < -10) dis = -6;
+		else if (dis < -5) dis = -5;
+	}
 
 	Word p_word(sent[p].first()), c_word(sent[c].first());
 	POSTag p_tag(sent[p].second()), c_tag(sent[c].second());
-	POSTag p_1_tag(p > 0 ? sent[p - 1].second() : m_tkStart.second()),
-			p1_tag(p < sentLen - 1 ? sent[p + 1].second() : m_tkEnd.second()),
-			c_1_tag(c > 0 ? sent[c - 1].second() : m_tkStart.second()),
-			c1_tag(c < sentLen - 1 ? sent[c + 1].second() : m_tkEnd.second()),
+
+	int pp = p - 1, np = p + 1, pc = c - 1, nc = c + 1;
+	while (pp >= 0 && TPOSTag::key(sent[pp].second())[0] == '*') --pp;
+	while (np < sentLen && TPOSTag::key(sent[np].second())[0] == '*') ++np;
+	while (pc >= 0 && TPOSTag::key(sent[pc].second())[0] == '*') --pc;
+	while (nc < sentLen && TPOSTag::key(sent[nc].second())[0] == '*') ++nc;
+
+	POSTag p_1_tag(pp >= 0 ? sent[pp].second() : m_tkStart.second()),
+			p1_tag(np < sentLen ? sent[np].second() : m_tkEnd.second()),
+			c_1_tag(pc >= 0 ? sent[pc].second() : m_tkStart.second()),
+			c1_tag(nc < sentLen ? sent[nc].second() : m_tkEnd.second()),
 			b_tag;
 
 	// features

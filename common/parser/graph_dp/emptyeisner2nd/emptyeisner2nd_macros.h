@@ -10,6 +10,7 @@ namespace emptyeisner2nd {
 
 #define AGENDA_SIZE		8
 #define MAX_EMPTY_SIZE	17
+#define MAX_EMPTY_COUNT	26
 
 #define EMPTYTAG			"EMCAT"
 

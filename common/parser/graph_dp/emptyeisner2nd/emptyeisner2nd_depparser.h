@@ -18,7 +18,7 @@ namespace emptyeisner2nd {
 
 		Weightec2nd *m_pWeight;
 
-		std::vector<StateItem> m_lItems[MAX_SENTENCE_SIZE];
+		StateItem m_lItems[MAX_SENTENCE_SIZE][MAX_SENTENCE_SIZE][MAX_EMPTY_COUNT];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE];
 		WordPOSTag m_lSentenceWithEmpty[MAX_SENTENCE_SIZE];
 		std::vector<Arc> m_vecCorrectArcs;
@@ -55,7 +55,7 @@ namespace emptyeisner2nd {
 		~DepParser();
 
 		void decode();
-		void decodeArcs();
+		void decodeArcs(int nec);
 
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);

@@ -69,8 +69,8 @@ namespace emptyeisner2nd {
 			for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 				m_lSentence[idx][i].refer(
 					TWord::code(
-					(idx == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[idx - 1][0].second())) +
-					TEmptyTag::key(i) + SENT_POSTAG(token)
+					(idx == 0 ? START_WORD : TWord::key(m_lSentence[idx - 1][0].first())) +
+					TEmptyTag::key(i) + SENT_WORD(token)
 					),
 					TPOSTag::code(TEmptyTag::key(i))
 					);
@@ -82,7 +82,7 @@ namespace emptyeisner2nd {
 		for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 			m_lSentence[idx][i].refer(
 				TWord::code(
-				TPOSTag::key(m_lSentence[idx - 1][0].second()) + TEmptyTag::key(i) + END_POSTAG
+				TWord::key(m_lSentence[idx - 1][0].first()) + TEmptyTag::key(i) + END_WORD
 				),
 				TPOSTag::code(TEmptyTag::key(i))
 				);
@@ -91,10 +91,6 @@ namespace emptyeisner2nd {
 	}
 
 	void DepParser::work(DependencyTree * retval, const DependencyTree & correct) {
-
-		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
-			m_lItems[d].clear();
-		}
 
 		decode();
 
@@ -120,213 +116,410 @@ namespace emptyeisner2nd {
 		initArcScore();
 		initBiSiblingArcScore();
 
+		int max_nec = 25;
+		if (m_nSentenceLength <= 10) max_nec = 5;
+		else if (m_nSentenceLength <= 20) max_nec = 10;
+		else if (m_nSentenceLength <= 50) max_nec = 15;
+		else if (m_nSentenceLength <= 100) max_nec = 20;
+
 		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
 
-			m_lItems[d] = std::vector<StateItem>(m_nSentenceLength - d + 1);
+			for (int l = 0, max_l = m_nSentenceLength - d + 1; l < max_l; ++l) {
 
-			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
-
-				int l = i + d - 1;
-				StateItem & item = m_lItems[d][i];
-				const tscore & l2r_arc_score = m_vecArcScore[i][l];
-				const tscore & r2l_arc_score = m_vecArcScore[l][i];
+				int r = l + d - 1;
+				StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
+				const tscore & l2r_arc_score = m_vecArcScore[l][r];
+				const tscore & r2l_arc_score = m_vecArcScore[r][l];
 
 				// initialize
-				item.init(i, l);
+				for (int nec = 0; nec <= max_nec; ++nec) items[nec].init(l, r);
 
-				for (int s = i; s < l; ++s) {
-					StateItem & litem = m_lItems[s - i + 1][i];
-					StateItem & ritem = m_lItems[l - s][s + 1];
+				for (int s = l; s < r; ++s) {
+					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
+					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s + 1][r];
+					int lnec = 0;
+					while (lnec <= max_nec) {
+						int rnec = 0;
+						StateItem & litem = litems[lnec];
+						while (lnec + rnec <= max_nec) {
+							StateItem & ritem = ritems[rnec];
+							StateItem & item = items[lnec + rnec];
 
-					item.updateJUX(s, litem.l2r.getScore() + ritem.r2l.getScore());
+							// jux
+							if (litem.states[L2R].split != -1 && ritem.states[R2L].split != -1) {
+								item.updateStates(
+										litem.states[L2R].score + ritem.states[R2L].score,
+										s, lnec, JUX);
+							}
 
-					// l2r_empty_inside
-					tscore l_empty_inside_base_score = l2r_arc_score + ritem.r2l.getScore();
-					for (const auto & l_beam : litem.l2r_empty_outside) {
-						int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(l_beam->getSplit()));
-						int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(l_beam->getSplit()));
-						int j = DECODE_EMPTY_POS(l_beam->getSplit());
-						item.updateL2REmptyInside(p, l_beam->getSplit(), l_empty_inside_base_score +
-							l_beam->getScore() +
-							biSiblingArcScore(i, k, l) + // empty node bisibling
-							biSiblingArcScore(i, j == i ? -1 : j, l)); // solid node bisibling
-					}
+							// l2r_empty_inside
+							// split point would be encode as an empty point
+							if (litem.states[L2R_EMPTY_OUTSIDE].split != -1 && ritem.states[R2L].split != -1) {
+								tscore l_empty_inside_base_score = l2r_arc_score + ritem.states[R2L].score;
+								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+									item.updateStates(
+											// bi-sibling arc score
+											biSiblingArcScore(l, ENCODE_EMPTY(s + 1, ec), r) +
+											// left part score
+											litem.states[L2R_EMPTY_OUTSIDE + ec - 1].score +
+											// arc score + right part score
+											l_empty_inside_base_score,
+											ENCODE_EMPTY(s, ec), lnec, L2R_EMPTY_INSIDE);
+								}
+							}
 
-					// r2l_empty_inside
-					tscore r_empty_inside_base_score = r2l_arc_score + litem.l2r.getScore();
-					for (const auto & r_beam : ritem.r2l_empty_outside) {
-						int p = ENCODE_EMPTY(s, DECODE_EMPTY_TAG(r_beam->getSplit()));
-						int k = ENCODE_EMPTY(s + 1, DECODE_EMPTY_TAG(r_beam->getSplit()));
-						int j = DECODE_EMPTY_POS(r_beam->getSplit());
-						item.updateR2LEmptyInside(p, r_beam->getSplit(), r_empty_inside_base_score +
-							r_beam->getScore() +
-							biSiblingArcScore(l, k, i) +
-							biSiblingArcScore(l, j == l ? -1 : j, i));
+							// r2l_empty_inside
+							// split point would be encode as an empty point
+							if (litem.states[L2R].split != -1 && ritem.states[R2L_EMPTY_OUTSIDE].split != -1) {
+								tscore r_empty_inside_base_score = r2l_arc_score + litem.states[L2R].score;
+								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+									item.updateStates(
+											// bi-sibling arc score
+											biSiblingArcScore(r, ENCODE_EMPTY(s + 1, ec), l) +
+											// right part score
+											ritem.states[R2L_EMPTY_OUTSIDE + ec - 1].score +
+											// arc score + left part score
+											r_empty_inside_base_score,
+											ENCODE_EMPTY(s, ec), lnec, R2L_EMPTY_INSIDE);
+								}
+							}
+							++rnec;
+						}
+						++lnec;
 					}
 				}
 
-				for (int k = i + 1; k < l; ++k) {
+				for (int s = l + 1; s < r; ++s) {
+					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
+					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s][r];
+					int lnec = 0;
 
-					StateItem & litem = m_lItems[k - i + 1][i];
-					StateItem & ritem = m_lItems[l - k + 1][k];
+					tscore l2r_solid_arc_score = m_vecBiSiblingScore[l][r][s] + l2r_arc_score;
+					tscore r2l_solid_arc_score = m_vecBiSiblingScore[r][l][s] + r2l_arc_score;
 
-					// l2r solid both
-					tscore l_base_jux = ritem.jux.getScore() + l2r_arc_score + m_vecBiSiblingScore[i][l][k];
-					item.updateL2RSolidBoth(k, l_base_jux + litem.l2r_solid_outside.getScore());
-					// r2l solid both
-					tscore r_base_jux = litem.jux.getScore() + r2l_arc_score + m_vecBiSiblingScore[l][i][k];
-					item.updateR2LSolidBoth(k, r_base_jux + ritem.r2l_solid_outside.getScore());
+					while (lnec <= max_nec) {
+						int rnec = 0;
+						StateItem & litem = litems[lnec];
+						while (lnec + rnec <= max_nec) {
+							StateItem & ritem = ritems[rnec];
+							StateItem & solidItem = items[lnec + rnec];
 
-					// l2r_empty_outside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
-						const int & t = swt->getType();
-						// s is split with type
-						int s = ENCODE_EMPTY(k, t);
-						// o is outside empty
-						int o = ENCODE_EMPTY(l + 1, t);
-						tscore l_empty_outside_base_score = ritem.l2r.getScore() + swt->getScore() + biSiblingArcScore(i, k, o);
-						item.updateL2REmptyOutside(s, l_empty_outside_base_score +
-							litem.l2r_solid_outside.getScore());
+							if (litem.states[L2R_SOLID_OUTSIDE].split != -1) {
+								if (ritem.states[JUX].split != -1) {
+									// l2r_solid_both
+									solidItem.updateStates(
+											// left part + right part
+											litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[JUX].score +
+											// bi-sibling arc score + arc score
+											l2r_solid_arc_score,
+											s, lnec, L2R_SOLID_BOTH);
+								}
+								if (ritem.states[L2R].split != -1) {
+									// l2r
+									solidItem.updateStates(
+											// left part + right part
+											litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score,
+											s, lnec, L2R);
+								}
+							}
+
+							if (ritem.states[R2L_SOLID_OUTSIDE].split != -1) {
+								if (litem.states[JUX].split != -1) {
+									// r2l_solid_both
+									solidItem.updateStates(
+											// left part + right part
+											litem.states[JUX].score + ritem.states[R2L_SOLID_OUTSIDE].score +
+											// bi-sibling arc score + arc score
+											r2l_solid_arc_score,
+											s, lnec, R2L_SOLID_BOTH);
+								}
+								if (litem.states[R2L].split != -1) {
+									// r2l
+									solidItem.updateStates(
+											// left part + right part
+											litem.states[R2L].score + ritem.states[R2L_SOLID_OUTSIDE].score,
+											s, lnec, R2L);
+								}
+							}
+
+							if (lnec + rnec < max_nec) {
+								StateItem & emptyItem = items[lnec + rnec + 1];
+								if (litem.states[L2R_SOLID_OUTSIDE].split != -1 && ritem.states[L2R].split != -1) {
+									tscore base_score = litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score;
+									for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+										// l2r_empty_outside
+										emptyItem.updateStates(
+												// bi-sibling arc score
+												biSiblingArcScore(l, s, ENCODE_EMPTY(r + 1, ec)) +
+												// arc score
+												arcScore(l, ENCODE_EMPTY(r + 1, ec)) +
+												// left part + right part
+												base_score,
+												s, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
+									}
+								}
+
+								if (litem.states[R2L].split != -1 && ritem.states[R2L_SOLID_OUTSIDE].split != -1) {
+									tscore base_score = litem.states[R2L].score + ritem.states[R2L_SOLID_OUTSIDE].score;
+									for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+										// r2l_empty_outside
+										emptyItem.updateStates(
+												// bi-sibling arc score
+												biSiblingArcScore(r, s, ENCODE_EMPTY(l, ec)) +
+												// arc score
+												arcScore(r, ENCODE_EMPTY(l, ec)) +
+												// left part + right part
+												base_score,
+												s, lnec, R2L_EMPTY_OUTSIDE + ec - 1);
+									}
+								}
+							}
+							++rnec;
+						}
+						++lnec;
 					}
-					// complete
-					item.updateL2R(k, litem.l2r_solid_outside.getScore() + ritem.l2r.getScore());
-
-					// r2l_empty_outside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(k, t);
-						int o = ENCODE_EMPTY(i, t);
-						tscore r_empty_outside_base_score = litem.r2l.getScore() + swt->getScore() + biSiblingArcScore(l, k, o);
-						item.updateR2LEmptyOutside(s, r_empty_outside_base_score +
-							ritem.r2l_solid_outside.getScore());
-					}
-					// complete
-					item.updateR2L(k, ritem.r2l_solid_outside.getScore() + litem.r2l.getScore());
 				}
 
 				if (d > 1) {
-					StateItem & litem = m_lItems[d - 1][i];
-					StateItem & ritem = m_lItems[d - 1][i + 1];
+					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][r - 1];
+					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[l + 1][r];
 
-					// l2r_solid_both
-					item.updateL2RSolidBoth(i, ritem.r2l.getScore() +
-						l2r_arc_score +
-						m_vecBiSiblingScore[i][l][i]);
-					// r2l_solid_both
-					item.updateR2LSolidBoth(l, litem.l2r.getScore() +
-						r2l_arc_score +
-						m_vecBiSiblingScore[l][i][l]);
-
-					item.updateL2R(l, item.l2r_solid_both.getScore());
-					item.updateL2RSolidOutside(item.l2r_solid_both.getSplit(), item.l2r_solid_both.getScore());
-					item.updateL2RSolidOutside(item.l2r_empty_inside.getSplit(), item.l2r_empty_inside.getScore());
-
-					item.updateR2L(i, item.r2l_solid_both.getScore());
-					item.updateR2LSolidOutside(item.r2l_solid_both.getSplit(), item.r2l_solid_both.getScore());
-					item.updateR2LSolidOutside(item.r2l_empty_inside.getSplit(), item.r2l_empty_inside.getScore());
-				}
-				if (d > 1) {
-					// l2r_empty_ouside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(l, t);
-						int o = ENCODE_EMPTY(l + 1, t);
-						tscore base_l2r_empty_outside_score = swt->getScore() + biSiblingArcScore(i, l, o) + m_lItems[1][l].l2r.getScore();
-						item.updateL2REmptyOutside(s, base_l2r_empty_outside_score +
-							item.l2r_solid_outside.getScore());
+					int rnec = 0;
+					tscore l2r_solid_both_base_score = m_vecBiSiblingScore[l][r][l] + l2r_arc_score;
+					while (rnec <= max_nec && ritems[rnec].states[R2L].split != -1) {
+						// l2r_solid_both
+						items[rnec].updateStates(
+								// right part score
+								ritems[rnec].states[R2L].score +
+								// bi-sibling arc score + arc score
+								l2r_solid_both_base_score,
+								// left part is a point, 0 ec
+								l, 0, L2R_SOLID_BOTH);
+						++rnec;
 					}
-					// l2r
-					item.updateL2R(l, item.l2r_solid_outside.getScore() + m_lItems[1][l].l2r.getScore());
 
-					// r2l_empty_outside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
-							const int & t = swt->getType();
-							int s = ENCODE_EMPTY(i, t);
-							int o = ENCODE_EMPTY(i, t);
-							tscore base_r2l_empty_outside_score = swt->getScore() + biSiblingArcScore(l, i, o) + m_lItems[1][i].r2l.getScore();
-							item.updateR2LEmptyOutside(s, base_r2l_empty_outside_score +
-								item.r2l_solid_outside.getScore());
+					int lnec = 0;
+					tscore r2l_solid_both_base_score = m_vecBiSiblingScore[r][l][r] + r2l_arc_score;
+					while (lnec <= max_nec && litems[lnec].states[L2R].split != -1) {
+						// r2l_solid_both
+						items[lnec].updateStates(
+								// left part score
+								litems[lnec].states[L2R].score +
+								// bi-sibling arc score + arc score
+								r2l_solid_both_base_score,
+								// left part is L2R, lnec ec
+								r, lnec, R2L_SOLID_BOTH);
+						++lnec;
 					}
-					// r2l
-					item.updateR2L(i, item.r2l_solid_outside.getScore() + m_lItems[1][i].r2l.getScore());
+
+					lnec = 0;
+					while (lnec <= max_nec && items[lnec].states[L2R_SOLID_BOTH].split != -1) {
+						StateItem & item = items[lnec];
+						// l2r
+						item.updateStates(
+								item.states[L2R_SOLID_BOTH].score,
+								r, lnec, L2R);
+						// l2r_solid_outside
+						item.updateStates(
+								item.states[L2R_SOLID_BOTH].score,
+								item.states[L2R_SOLID_BOTH].split,
+								item.states[L2R_SOLID_BOTH].lecnum,
+								L2R_SOLID_OUTSIDE);
+						++lnec;
+					}
+					// inside start from 1
+					lnec = 1;
+					while (lnec <= max_nec && items[lnec].states[L2R_EMPTY_INSIDE].split != -1) {
+						StateItem & item = items[lnec];
+						// l2r_solid_outside
+						item.updateStates(
+								item.states[L2R_EMPTY_INSIDE].score,
+								item.states[L2R_EMPTY_INSIDE].split,
+								item.states[L2R_EMPTY_INSIDE].lecnum,
+								L2R_SOLID_OUTSIDE);
+					}
+
+					rnec = 0;
+					while (rnec <= max_nec && items[rnec].states[R2L_SOLID_BOTH].split != -1) {
+						StateItem & item = items[rnec];
+						// r2l
+						item.updateStates(
+								item.states[R2L_SOLID_BOTH].score,
+								l, 0, R2L);
+						// r2l_solid_outside
+						item.updateStates(
+								item.states[R2L_SOLID_BOTH].score,
+								item.states[R2L_SOLID_BOTH].split,
+								item.states[R2L_SOLID_BOTH].lecnum,
+								R2L_SOLID_OUTSIDE);
+						++rnec;
+					}
+					// inside start from 1
+					rnec = 1;
+					while (rnec <= max_nec && items[rnec].states[R2L_EMPTY_INSIDE].split != -1) {
+						StateItem & item = items[rnec];
+						// r2l_solid_outside
+						item.updateStates(
+								item.states[R2L_EMPTY_INSIDE].score,
+								item.states[R2L_EMPTY_INSIDE].split,
+								item.states[R2L_EMPTY_INSIDE].lecnum,
+								R2L_SOLID_OUTSIDE);
+					}
+
+					rnec = 0;
+					while (rnec <= 1) {
+						lnec = 0;
+						StateItem & ritem = m_lItems[r][r][rnec];
+						while (lnec + rnec <= max_nec) {
+							StateItem & litem = items[lnec];
+							StateItem & item = items[lnec + rnec + 1];
+							if (litem.states[L2R_SOLID_OUTSIDE].split != -1) {
+								// l2r_empty_ouside
+								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+									item.updateStates(
+											// left part + right part
+											litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score +
+											// bi-sibling arc score
+											biSiblingArcScore(l, r, ENCODE_EMPTY(r + 1, ec)) +
+											// arc score
+											arcScore(l, ENCODE_EMPTY(r + 1, ec)),
+											r, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
+								}
+								// l2r
+								item.updateStates(
+										litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score,
+										r, lnec, L2R);
+							}
+							++lnec;
+						}
+						++rnec;
+					}
+
+					lnec = 0;
+					while (lnec <= 1) {
+						rnec = 0;
+						StateItem & litem = m_lItems[l][l][lnec];
+						while (rnec + lnec <= max_nec) {
+							StateItem & ritem = items[rnec];
+							StateItem & item = items[rnec + lnec + 1];
+							if (ritem.states[R2L_SOLID_OUTSIDE].split != -1) {
+								// r2l_empty_ouside
+								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+									item.updateStates(
+											// left part + right part
+											ritem.states[R2L_SOLID_OUTSIDE].score + litem.states[R2L].score +
+											// bi-sibling arc score
+											biSiblingArcScore(r, l, ENCODE_EMPTY(l, ec)) +
+											// arc score
+											arcScore(r, ENCODE_EMPTY(l, ec)),
+											l, lnec, R2L_EMPTY_OUTSIDE + ec - 1);
+								}
+								// r2l
+								item.updateStates(
+										ritem.states[R2L_SOLID_OUTSIDE].score + litem.states[R2L].score,
+										l, lnec, R2L);
+							}
+							++rnec;
+						}
+						++lnec;
+					}
 				}
 				else {
-					// l2r_empty_ouside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[i][l]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(l, t);
-						int o = ENCODE_EMPTY(l + 1, t);
-						item.updateL2REmptyOutside(s, swt->getScore() +
-							biSiblingArcScore(i, -1, o));
+					for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+						// l2r_empty_ouside
+						items[1].updateStates(
+								biSiblingArcScore(l, -1, ENCODE_EMPTY(r + 1, ec)) +
+								arcScore(l, ENCODE_EMPTY(r + 1, ec)),
+								r, 1, L2R_EMPTY_OUTSIDE + ec - 1);
 					}
 					// l2r
-					item.updateL2R(l, 0);
+					items[0].updateStates(0, r, 0, L2R);
+					// l2r with 1 empty node
+					items[1].updateStates(
+							items[1].states[L2R_EMPTY_OUTSIDE].score,
+							r, 1, L2R);
 
-					// r2l_empty_outside
-					for (const auto & swt : m_vecFirstOrderEmptyScore[l][i]) {
-						const int & t = swt->getType();
-						int s = ENCODE_EMPTY(i, t);
-						int o = ENCODE_EMPTY(i, t);
-						item.updateR2LEmptyOutside(s, swt->getScore() +
-							biSiblingArcScore(l, -1, o));
+					for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+						// r2l_empty_ouside
+						items[1].updateStates(
+								biSiblingArcScore(r, -1, ENCODE_EMPTY(l, ec)) +
+								arcScore(r, ENCODE_EMPTY(l, ec)),
+								l, 0, R2L_EMPTY_OUTSIDE + ec - 1);
 					}
 					// r2l
-					item.updateR2L(i, 0);
+					items[0].updateStates(0, l, 0, R2L);
+					// r2l with 1 empty node
+					items[1].updateStates(
+							items[1].states[R2L_EMPTY_OUTSIDE].score,
+							l, 0, R2L);
 				}
-
-				if (item.l2r_empty_outside.size() > 0) {
-					item.updateL2R(item.l2r_empty_outside.bestItem().getSplit(), item.l2r_empty_outside.bestItem().getScore());
-				}
-
-				if (item.r2l_empty_outside.size() > 0) {
-					item.updateR2L(item.r2l_empty_outside.bestItem().getSplit(), item.r2l_empty_outside.bestItem().getScore());
-				}
-
-//				if (m_nTrainingRound == 12) item.print(0);
 			}
 
 			if (d > 1) {
+				int l = m_nSentenceLength - d + 1, r = m_nSentenceLength;
 				// root
-				m_lItems[d].push_back(StateItem());
-				StateItem & item = m_lItems[d][m_nSentenceLength - d + 1];
-				item.init(m_nSentenceLength - d + 1, m_nSentenceLength);
+				StateItem (&l2ritems)[MAX_EMPTY_COUNT] = m_lItems[l][r - 1];
+				StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
+				// initialize
+				for (int nec = 0; nec <= max_nec; ++nec) items[nec].init(l, r);
 				// r2l_solid_outside
-				item.updateR2LSolidOutside(m_nSentenceLength, m_lItems[d - 1][item.left].l2r.getScore() +
-						m_vecArcScore[item.right][item.left] +
-						m_vecBiSiblingScore[item.right][item.left][item.right]);
+				int lnec = 0, rnec = 0;
+				while (lnec <= max_nec && l2ritems[lnec].states[L2R].split != -1) {
+					items[lnec].updateStates(
+							l2ritems[lnec].states[L2R].score +
+							m_vecBiSiblingScore[r][l][r] +
+							m_vecArcScore[r][l],
+							r, lnec, R2L_SOLID_OUTSIDE);
+					++lnec;
+				}
+
 				// r2l
-				item.updateR2L(item.left, item.r2l_solid_outside.getScore() + m_lItems[1][item.left].r2l.getScore());
-				for (int i = item.left, s = item.left + 1, j = m_nSentenceLength + 1; s < j - 1; ++s) {
-					item.updateR2L(s, m_lItems[j - s][s].r2l_solid_outside.getScore() + m_lItems[s - i + 1][i].r2l.getScore());
+				for (int s = l; s < r; ++s) {
+					lnec = 0;
+					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
+					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s][r];
+					while (lnec <= max_nec && litems[lnec].states[R2L].split != -1) {
+						rnec = 0;
+						while (lnec + rnec <= max_nec && ritems[rnec].states[R2L_SOLID_OUTSIDE].split != -1) {
+							items[lnec + rnec].updateStates(
+									litems[lnec].states[R2L].score + ritems[rnec].states[R2L_SOLID_OUTSIDE].score,
+									s, lnec, R2L);
+							++rnec;
+						}
+						++lnec;
+					}
 				}
 			}
 		}
 	}
 
-	void DepParser::decodeArcs() {
+	void DepParser::decodeArcs(int nec) {
 
 		m_vecTrainArcs.clear();
-		std::stack<std::tuple<int, int, int>> stack;
-		stack.push(std::tuple<int, int, int>(m_nSentenceLength + 1, -1, 0));
-		m_lItems[m_nSentenceLength + 1][0].type = R2L;
+		std::stack<std::tuple<int, int, int, int>> stack;
+		stack.push(std::tuple<int, int, int, int>(m_nSentenceLength + 1, -1, 0, nec));
+		m_lItems[m_nSentenceLength + 1][0][nec].type = R2L;
 
 		while (!stack.empty()) {
-			std::tuple<int, int, int> span = stack.top();
+			std::tuple<int, int, int, int> span = stack.top();
 			stack.pop();
-			StateItem & item = m_lItems[std::get<0>(span)][std::get<2>(span)];
+			StateItem & item = m_lItems[std::get<0>(span)][std::get<2>(span)][std::get<3>(span)];
 			int split = std::get<1>(span);
+			int tnec = std::get<3>(span), lnec;
 
 			switch (item.type) {
 			case JUX:
-				split = item.jux.getSplit();
+				split = item.states[JUX].split;
+				lnec = item.states[JUX].lecnum;
 
-				m_lItems[split - item.left + 1][item.left].type = L2R;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
-				m_lItems[item.right - split][split + 1].type = R2L;
-				stack.push(std::tuple<int, int, int>(item.right - split, -1, split + 1));
+				m_lItems[split - item.left + 1][item.left][lnec].type = L2R;
+				stack.push(std::tuple<int, int, int, int>(split - item.left + 1, -1, item.left, lnec));
+				m_lItems[item.right - split][split + 1][tnec - lnec].type = R2L;
+				stack.push(std::tuple<int, int, int, int>(item.right - split, -1, split + 1, tnec - lnec));
 				break;
 			case L2R:
-				split = item.l2r.getSplit();
+				split = item.states[L2R].split;
+				lnec = item.states[L2R].lecnum;
 
 				if (IS_EMPTY(split)) {
 					item.type = L2R_EMPTY_OUTSIDE;
@@ -605,7 +798,6 @@ namespace emptyeisner2nd {
 		}
 		m_nRetval = 0;
 		getOrUpdateSiblingScore(p, c, 0);
-//		std::cout << p << " -> " << c << " " << m_nRetval << std::endl;
 		return m_nRetval;
 	}
 
@@ -618,26 +810,6 @@ namespace emptyeisner2nd {
 		getOrUpdateSiblingScore(p, c, c2, 0);
 		return m_nRetval;
 	}
-
-//	const tscore & DepParser::triSiblingArcScore(const int & p, const int & c, const int & c2, const int & c3) {
-//		if (m_nState == ParserState::GOLDTEST) {
-//			m_nRetval = m_setTriSiblingArcGoldScore.find(QuarGram<int>(p, c, c2, c3)) == m_setTriSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			return m_nRetval;
-//		}
-//		m_nRetval = 0;
-//		getOrUpdateSiblingScore(p, c, c2, c3, 0);
-//		return m_nRetval;
-//	}
-
-//	const tscore & DepParser::grandTriSiblingArcScore(const int & g, const int & p, const int & c, const int & c2, const int & c3) {
-//		if (m_nState == ParserState::GOLDTEST) {
-//			m_nRetval = m_setGrandTriSiblingArcGoldScore.find(QuinGram<int>(g, p, c, c2, c3)) == m_setGrandTriSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
-//			return m_nRetval;
-//		}
-//		m_nRetval = 0;
-//		getOrUpdateGrandScore(g, p, c, c2, c3, 0);
-//		return m_nRetval;
-//	}
 
 	void DepParser::initArcScore() {
 		m_vecArcScore =
@@ -715,8 +887,8 @@ namespace emptyeisner2nd {
 				for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 					m_lSentence[m_nSentenceLength][i].refer(
 							TWord::code(
-						(m_nSentenceLength == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[m_nSentenceLength - 1][0].second())) +
-						TEmptyTag::key(i) + TREENODE_POSTAG(node)
+						(m_nSentenceLength == 0 ? START_WORD : TWord::key(m_lSentence[m_nSentenceLength - 1][0].first())) +
+						TEmptyTag::key(i) + TREENODE_WORD(node)
 						),
 						TPOSTag::code(TEmptyTag::key(i))
 						);
@@ -728,29 +900,20 @@ namespace emptyeisner2nd {
 		for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
 			m_lSentence[m_nSentenceLength][i].refer(
 				TWord::code(
-				TPOSTag::key(m_lSentence[m_nSentenceLength - 1][0].second()) + TEmptyTag::key(i) + END_POSTAG
+				TWord::key(m_lSentence[m_nSentenceLength - 1][0].first()) + TEmptyTag::key(i) + END_WORD
 				),
 				TPOSTag::code(TEmptyTag::key(i))
 				);
 		}
 		int idx = 0, idxwe = 0;
-		ttoken empty_tag = "";
 		for (const auto & node : tcorrect) {
 			if (TREENODE_POSTAG(node) == EMPTYTAG) {
-				m_lSentenceWithEmpty[idxwe++].refer(
-					TWord::code((idx == 0 ? START_POSTAG : TPOSTag::key(m_lSentence[idx - 1][0].second())) +
-					TREENODE_WORD(node) +
-					(idx == m_nSentenceLength ? END_POSTAG : TPOSTag::key(m_lSentence[idx][0].second()))),
-					TPOSTag::code(TREENODE_WORD(node))
-					);
 				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), ENCODE_EMPTY(idx, TEmptyTag::code(TREENODE_WORD(node)))));
 			}
 			else {
-				m_lSentenceWithEmpty[idxwe++].refer(TWord::code(TREENODE_WORD(node)), TPOSTag::code(TREENODE_POSTAG(node)));
 				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), idx++));
 			}
 		}
-		m_lSentenceWithEmpty[idxwe++].refer(TWord::code(ROOT_WORD), TPOSTag::code(ROOT_POSTAG));
 	}
 
 	bool DepParser::testEmptyNode(const int & p, const int & c) {
@@ -764,150 +927,4 @@ namespace emptyeisner2nd {
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
 		m_pWeight->getOrUpdateBiArcScore(m_nRetval, p, c, c2, amount, m_nSentenceLength, m_lSentence);
 	}
-
-//	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & c3, const int & amount) {
-//		Weight * cweight = (Weight*)m_Weight;
-//
-//		int pos_c = DECODE_EMPTY_POS(c);
-//		int tag_c = DECODE_EMPTY_TAG(c);
-//
-//		int pos_c2 = DECODE_EMPTY_POS(c2);
-//		int tag_c2 = DECODE_EMPTY_TAG(c2);
-//
-//		int pos_c3 = DECODE_EMPTY_POS(c3);
-//		int tag_c3 = DECODE_EMPTY_TAG(c3);
-//
-//		p_word = m_lSentence[p][0].first();
-//		p_tag = m_lSentence[p][0].second();
-//
-//		c_word = IS_NULL(c) ? empty_taggedword.first() : m_lSentence[pos_c][tag_c].first();
-//		c_tag = IS_NULL(c) ? empty_taggedword.second() : m_lSentence[pos_c][tag_c].second();
-//
-//		c2_word = IS_NULL(c2) ? empty_taggedword.first() : m_lSentence[pos_c2][tag_c2].first();
-//		c2_tag = IS_NULL(c2) ? empty_taggedword.second() : m_lSentence[pos_c2][tag_c2].second();
-//
-//		c3_word = m_lSentence[pos_c3][tag_c3].first();
-//		c3_tag = m_lSentence[pos_c3][tag_c3].second();
-//
-//		int pc = IS_EMPTY(c) ? (pos_c > p ? pos_c : pos_c - 1) : c;
-//		m_nDir = encodeLinkDistanceOrDirection(p, pc, true);
-//
-//		// word tag tag tag
-//		word_tag_tag_tag_int.refer(p_word, c_tag, c2_tag, c3_tag, 0);
-//		cweight->m_mapPwC1pC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapPwC1pC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_tag_tag_int.refer(c_word, p_tag, c2_tag, c3_tag, 0);
-//		cweight->m_mapC1wPpC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wPpC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_tag_tag_int.refer(c2_word, p_tag, c_tag, c3_tag, 0);
-//		cweight->m_mapC2wPpC1pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC2wPpC1pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_tag_tag_int.refer(c3_word, p_tag, c_tag, c2_tag, 0);
-//		cweight->m_mapC3wPpC1pC2p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC3wPpC1pC2p.getOrUpdateScore(m_nRetval, word_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// word word tag tag
-//		word_word_tag_tag_int.refer(p_word, c_word, c2_tag, c3_tag, 0);
-//		cweight->m_mapPwC1wC2pC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapPwC1wC2pC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_tag_int.refer(p_word, c2_word, c_tag, c3_tag, 0);
-//		cweight->m_mapPwC2wC1pC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapPwC2wC1pC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_tag_int.refer(p_word, c3_word, c_tag, c2_tag, 0);
-//		cweight->m_mapPwC3wC1pC2p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapPwC3wC1pC2p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_tag_int.refer(c_word, c2_word, p_tag, c3_tag, 0);
-//		cweight->m_mapC1wC2wPpC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC2wPpC3p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_tag_int.refer(c_word, c3_word, p_tag, c2_tag, 0);
-//		cweight->m_mapC1wC3wPpC2p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC3wPpC2p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_tag_int.refer(c2_word, c3_word, p_tag, c_tag, 0);
-//		cweight->m_mapC2wC3wPpC1p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC2wC3wPpC1p.getOrUpdateScore(m_nRetval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// tag tag tag tag
-//		tag_tag_tag_tag_int.refer(p_tag, c_tag, c2_tag, c3_tag, 0);
-//		cweight->m_mapPpC1pC2pC3p.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		tag_tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapPpC1pC2pC3p.getOrUpdateScore(m_nRetval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// word tag tag
-//		word_tag_tag_int.refer(c_word, c2_tag, c3_tag, 0);
-//		cweight->m_mapC1wC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC2pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_tag_int.refer(c2_word, c_tag, c3_tag, 0);
-//		cweight->m_mapC2wC1pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC2wC1pC3p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_tag_int.refer(c3_word, c_tag, c2_tag, 0);
-//		cweight->m_mapC3wC1pC2p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC3wC1pC2p.getOrUpdateScore(m_nRetval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// word word tag
-//		word_word_tag_int.refer(c_word, c2_word, c3_tag, 0);
-//		cweight->m_mapC1wC2wC3p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC2wC3p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_int.refer(c_word, c3_word, c2_tag, 0);
-//		cweight->m_mapC1wC3wC2p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC3wC2p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_word_tag_int.refer(c2_word, c3_word, c_tag, 0);
-//		cweight->m_mapC2wC3wC1p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_tag_int.referLast(m_nDir);
-//		cweight->m_mapC2wC3wC1p.getOrUpdateScore(m_nRetval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// tag tag tag
-//		tag_tag_tag_int.refer(c_tag, c2_tag, c3_tag, 0);
-//		cweight->m_mapC1pC2pC3p.getOrUpdateScore(m_nRetval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		tag_tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1pC2pC3p.getOrUpdateScore(m_nRetval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		// other
-//		word_word_int.refer(c_word, c3_word, 0);
-//		cweight->m_mapC1wC3w.getOrUpdateScore(m_nRetval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_word_int.referLast(m_nDir);
-//		cweight->m_mapC1wC3w.getOrUpdateScore(m_nRetval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_int.refer(c_word, c3_tag, 0);
-//		cweight->m_mapC1wC3p.getOrUpdateScore(m_nRetval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1wC3p.getOrUpdateScore(m_nRetval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		word_tag_int.refer(c3_word, c_tag, 0);
-//		cweight->m_mapC3wC1p.getOrUpdateScore(m_nRetval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		word_tag_int.referLast(m_nDir);
-//		cweight->m_mapC3wC1p.getOrUpdateScore(m_nRetval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//
-//		tag_tag_int.refer(c_tag, c3_tag, 0);
-//		cweight->m_mapC1pC3p.getOrUpdateScore(m_nRetval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//		tag_tag_int.referLast(m_nDir);
-//		cweight->m_mapC1pC3p.getOrUpdateScore(m_nRetval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-//	}
-
 }

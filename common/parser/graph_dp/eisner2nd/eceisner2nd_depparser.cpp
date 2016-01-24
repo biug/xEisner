@@ -1,19 +1,36 @@
 #include <cmath>
 #include <stack>
+#include <queue>
 #include <algorithm>
 #include <unordered_set>
 
-#include "eisner2nd_depparser.h"
+#include "eceisner2nd_depparser.h"
 #include "common/token/word.h"
 #include "common/token/pos.h"
 
+typedef std::pair<double, std::vector<WordPOSTag>> tSent;
+bool operator<(const tSent& s1, const tSent& s2) {
+	if (s1.first != s2.first) return s1.first < s2.first;
+	return s1.second.size() < s2.second.size();
+}
+bool operator>(const tSent& s1, const tSent& s2) {
+	if (s1.first != s2.first) return s1.first > s2.first;
+	return s1.second.size() > s2.second.size();
+}
+bool operator<=(const tSent& s1, const tSent& s2) {
+	return !(s1 > s2);
+}
+bool operator>=(const tSent& s1, const tSent& s2) {
+	return !(s1 < s2);
+}
+
 namespace eisner2nd {
 
-	WordPOSTag DepParser::empty_taggedword = WordPOSTag();
-	WordPOSTag DepParser::start_taggedword = WordPOSTag();
-	WordPOSTag DepParser::end_taggedword = WordPOSTag();
+	WordPOSTag ECDepParser::empty_taggedword = WordPOSTag();
+	WordPOSTag ECDepParser::start_taggedword = WordPOSTag();
+	WordPOSTag ECDepParser::end_taggedword = WordPOSTag();
 
-	DepParser::DepParser(const std::string & sFeatureInput, const std::string & sFeatureOut, int nState) :
+	ECDepParser::ECDepParser(const std::string & sFeatureInput, const std::string & sFeatureOut, int nState) :
 		DepParserBase(nState) {
 
 		m_nSentenceLength = 0;
@@ -24,18 +41,18 @@ namespace eisner2nd {
 			m_lItems[1][i].init(i, i);
 		}
 
-		DepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
-		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
-		DepParser::end_taggedword.refer(TWord::code(END_WORD), TPOSTag::code(END_POSTAG));
+		ECDepParser::empty_taggedword.refer(TWord::code(EMPTY_WORD), TPOSTag::code(EMPTY_POSTAG));
+		ECDepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
+		ECDepParser::end_taggedword.refer(TWord::code(END_WORD), TPOSTag::code(END_POSTAG));
 
-		m_pWeight->init(DepParser::empty_taggedword, DepParser::start_taggedword, DepParser::end_taggedword);
+		m_pWeight->init(ECDepParser::empty_taggedword, ECDepParser::start_taggedword, ECDepParser::end_taggedword);
 	}
 
-	DepParser::~DepParser() {
+	ECDepParser::~ECDepParser() {
 		delete m_pWeight;
 	}
 
-	void DepParser::train(const DependencyTree & correct, const int & round) {
+	void ECDepParser::train(const DependencyTree & correct, const int & round) {
 		// initialize
 		int idx = 0;
 		m_vecCorrectArcs.clear();
@@ -65,7 +82,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::parse(const Sentence & sentence, DependencyTree * retval) {
+	void ECDepParser::parse(const Sentence & sentence, DependencyTree * retval) {
 		int idx = 0;
 		DependencyTree correct;
 		m_nSentenceLength = sentence.size();
@@ -74,10 +91,70 @@ namespace eisner2nd {
 			correct.push_back(DependencyTreeNode(token, -1, NULL_LABEL));
 		}
 		m_lSentence[idx].refer(TWord::code(ROOT_WORD), TPOSTag::code(ROOT_POSTAG));
+		// traverse all empty nodes
+
+		std::string emptyTags[] = {
+				"*PRO*", "*OP*", "*T*", "*pro*",
+				"*RNR*", "*OP*|*T*", "*OP*|*pro*", "*pro*|*T*",
+				"*OP*|*pro*|*T*", "*RNR*|*RNR*", "*", "*PRO*|*T*",
+				"*OP*|*PRO*|*T*", "*T*|*pro*", "*T*|*", "*pro*|*PRO*", "*|*T*"};
+		AgendaBeam<tSent, 16> bestSents[2], *pGenerated = &bestSents[0], *pGenerator = &bestSents[1];
+		AgendaBeam<tSent, 128> finishSent;
+		tSent initialSent;
+
+		decode();
+		initialSent.first = (double)m_lItems[m_nSentenceLength + 1][0].r2l.getScore() / (double)m_nSentenceLength;
+		for (int i = 0; i <= idx; ++i) initialSent.second.push_back(m_lSentence[i]);
+
+		pGenerator->insertItem(initialSent);
+		finishSent.insertItem(initialSent);
+
+		while (pGenerator->size() > 0 && pGenerator->bestUnsortItem().second.size() - idx <= 10) {
+			// add a ec node
+			pGenerated->clear();
+			std::cout << "length is " << pGenerator->bestUnsortItem().second.size() - 1 << std::endl;
+			for (const auto & pItem : *pGenerator) {
+				// l = SentenceLength + 1
+				for (int s = 0, l = pItem->second.size(); s <= l; ++s) {
+					tSent sent;
+					m_nSentenceLength = l;
+					for (int i = 0; i < s; ++i) sent.second.push_back(m_lSentence[i] = pItem->second[i]);
+					sent.second.push_back(WordPOSTag());
+					for (int i = s; i < l; ++i) sent.second.push_back(m_lSentence[i + 1] = pItem->second[i]);
+					// in s insert empty node
+					AgendaBeam<ScoreWithSplit, 2> bestEmpty;
+					for (int e = 0; e < 17; ++e) {
+						m_lSentence[s] = sent.second[s] = WordPOSTag(TWord::code(emptyTags[e]), TPOSTag::code("EMCAT"));
+						for (int i = 0; i < l; ++i) {
+							tscore sc = arcScore(i, s);
+							if (i != s && m_lSentence[i].second() != m_lSentence[s].second() && sc > 0) bestEmpty.insertItem(ScoreWithSplit(e, sc));
+						}
+					}
+					for (const auto & pE : bestEmpty) {
+						m_lSentence[s] = sent.second[s] = WordPOSTag(TWord::code(emptyTags[pE->getSplit()]), TPOSTag::code("EMCAT"));
+
+						decode();
+						sent.first = (double)m_lItems[m_nSentenceLength + 1][0].r2l.getScore() / (double)m_nSentenceLength;
+						pGenerated->insertItem(sent);
+						finishSent.insertItem(sent);
+					}
+				}
+			}
+			std::swap(pGenerated, pGenerator);
+		}
+
+		correct.clear();
+		tSent sent = finishSent.bestUnsortItem();
+		for (int i = 0, l = sent.second.size(); i < l; ++i) {
+			m_lSentence[i] = sent.second[i];
+			correct.push_back(DependencyTreeNode(POSTaggedWord(TWord::key(m_lSentence[i].first()), TPOSTag::key(m_lSentence[i].second())), -1, NULL_LABEL));
+		}
+		m_nSentenceLength = sent.second.size() - 1;
+		std::cout << "best score is " << sent.first << " empty node is " << m_nSentenceLength - idx << std::endl;
 		work(retval, correct);
 	}
 
-	void DepParser::work(DependencyTree * retval, const DependencyTree & correct) {
+	void ECDepParser::work(DependencyTree * retval, const DependencyTree & correct) {
 
 		decode();
 
@@ -98,7 +175,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::decode() {
+	void ECDepParser::decode() {
 
 		for (int d = 2; d <= m_nSentenceLength + 1; ++d) {
 
@@ -155,7 +232,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::decodeArcs() {
+	void ECDepParser::decodeArcs() {
 
 		m_vecTrainArcs.clear();
 		std::stack<std::tuple<int, int>> stack;
@@ -247,7 +324,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::update() {
+	void ECDepParser::update() {
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 
 		std::unordered_set<BiArc> positiveArcs;
@@ -273,7 +350,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::generate(DependencyTree * retval, const DependencyTree & correct) {
+	void ECDepParser::generate(DependencyTree * retval, const DependencyTree & correct) {
 		for (int i = 0; i < m_nSentenceLength; ++i) {
 			retval->push_back(DependencyTreeNode(TREENODE_POSTAGGEDWORD(correct[i]), -1, NULL_LABEL));
 		}
@@ -282,7 +359,7 @@ namespace eisner2nd {
 		}
 	}
 
-	void DepParser::goldCheck() {
+	void ECDepParser::goldCheck() {
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[m_nSentenceLength + 1][0].r2l.getScore() / GOLD_POS_SCORE != 2 * m_vecTrainArcs.size()) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
@@ -306,36 +383,52 @@ namespace eisner2nd {
 		}
 	}
 
-	const tscore & DepParser::arcScore(const int & p, const int & c) {
+	const tscore & ECDepParser::arcScore(const int & p, const int & c) {
 		if (m_nState == ParserState::GOLDTEST) {
 			m_nRetval = m_setFirstGoldScore.find(BiGram<int>(p, c)) == m_setFirstGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
-		getOrUpdateStackScore(p, c, 0);
+		if (TPOSTag::key(m_lSentence[p].second()) == "EMCAT") m_nRetval = -100000000000000;
+		else getOrUpdateStackScore(p, c, 0);
 		return m_nRetval;
 	}
 
-	const tscore & DepParser::twoArcScore(const int & p, const int & c, const int & c2) {
+	const tscore & ECDepParser::twoArcScore(const int & p, const int & c, const int & c2) {
 		if (m_nState == ParserState::GOLDTEST) {
 			m_nRetval = m_setSecondGoldScore.find(TriGram<int>(p, c, c2)) == m_setSecondGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
 			return m_nRetval;
 		}
 		m_nRetval = 0;
-		getOrUpdateStackScore(p, c, c2, 0);
+		if (c != -1 && TPOSTag::key(m_lSentence[c].second()) == "EMCAT" && TPOSTag::key(m_lSentence[c2].second()) == "EMCAT") m_nRetval = -100000000000000;
+		else getOrUpdateStackScore(p, c, c2, 0);
 		return m_nRetval;
 	}
 
-	void DepParser::initFirstOrderScore(const int & d) {
+	void ECDepParser::initFirstOrderScore(const int & d) {
 		for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 			m_lFirstOrderScore[ENCODE_L2R(i)] = arcScore(i, i + d - 1);
 			m_lFirstOrderScore[ENCODE_R2L(i)] = arcScore(i + d - 1, i);
+//			if (TPOSTag::key(m_lSentence[i + d - 1].second()) == "EMCAT" && m_lFirstOrderScore[ENCODE_L2R(i)] > 0) {
+//				if (m_setFirstGoldScore.find(BiGram<int>(i, i + d - 1)) == m_setFirstGoldScore.end()) {
+//					std::cout << "in round " << ++m_nTrainingRound << std::endl;
+//				}
+////				std::cout << "in round " << ++m_nTrainingRound << std::endl;
+////				std::cout << "from " << i << " to " << (i + d - 1) << " tag is" << TWord::key(m_lSentence[i + d - 1].first()) << " score is " << m_lFirstOrderScore[ENCODE_L2R(i)] << std::endl;
+//			}
+//			if (TPOSTag::key(m_lSentence[i].second()) == "EMCAT" && m_lFirstOrderScore[ENCODE_R2L(i)] > 0) {
+//				if (m_setFirstGoldScore.find(BiGram<int>(i + d - 1, i)) == m_setFirstGoldScore.end()) {
+//					std::cout << "in round " << ++m_nTrainingRound << std::endl;
+//				}
+////				std::cout << "in round " << ++m_nTrainingRound << std::endl;
+////				std::cout << "from " << (i + d - 1) << " to " << i << " tag is " << TWord::key(m_lSentence[i].first()) << " score is " << m_lFirstOrderScore[ENCODE_R2L(i)] << std::endl;
+//			}
 		}
 		int i = m_nSentenceLength - d + 1;
 		m_lFirstOrderScore[ENCODE_R2L(i)] = arcScore(m_nSentenceLength, i);
 	}
 
-	void DepParser::initSecondOrderScore(const int & d) {
+	void ECDepParser::initSecondOrderScore(const int & d) {
 		for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 			int l = i + d - 1;
 			m_lSecondOrderScore[ENCODE_2ND_L2R(i, i)] = twoArcScore(i, -1, l);
@@ -349,11 +442,11 @@ namespace eisner2nd {
 		m_lSecondOrderScore[ENCODE_2ND_R2L(i, i)] = twoArcScore(m_nSentenceLength, -1, i);
 	}
 
-	void DepParser::getOrUpdateStackScore(const int & p, const int & c, const int & amount) {
+	void ECDepParser::getOrUpdateStackScore(const int & p, const int & c, const int & amount) {
 		m_pWeight->getOrUpdateArcScore(m_nRetval, p, c, amount, m_nSentenceLength, m_lSentence);
 	}
 
-	void DepParser::getOrUpdateStackScore(const int & p, const int & c, const int & c2, const int & amount) {
+	void ECDepParser::getOrUpdateStackScore(const int & p, const int & c, const int & c2, const int & amount) {
 		m_pWeight->getOrUpdateBiArcScore(m_nRetval, p, c, c2, amount, m_nSentenceLength, m_lSentence);
 
 	}

@@ -10,26 +10,49 @@
 namespace emptyeisner2nd {
 
 	enum STATE{
-		JUX = 1,
+		JUX = 0,
+		L2R,
+		R2L,
 		L2R_SOLID_BOTH,
 		R2L_SOLID_BOTH,
-		L2R_EMPTY_OUTSIDE,
-		R2L_EMPTY_OUTSIDE,
-		L2R_SOLID_OUTSIDE,
-		R2L_SOLID_OUTSIDE,
 		L2R_EMPTY_INSIDE,
 		R2L_EMPTY_INSIDE,
-		L2R,
-		R2L
+		L2R_SOLID_OUTSIDE,
+		R2L_SOLID_OUTSIDE,
+		L2R_EMPTY_OUTSIDE,
+		R2L_EMPTY_OUTSIDE = L2R_EMPTY_OUTSIDE + 17,
 	};
 
-	class StateItem {
+	std::string TYPE_NAME[] = {
+		"JUX", "L2R", "R2L", "L2R_SOLID_BOTH", "R2L_SOLID_BOTH",
+		"L2R_EMPTY_INSIDE", "R2L_EMPTY_INSIDE", "L2R_SOLID_OUTSIDE", "R2L_SOLID_OUTSIDE",
+		"L2R_EMPTY_OUTSIDE *PRO*", "L2R_EMPTY_OUTSIDE *OP*", "L2R_EMPTY_OUTSIDE *T*", "L2R_EMPTY_OUTSIDE *pro*",
+		"L2R_EMPTY_OUTSIDE *RNR*", "L2R_EMPTY_OUTSIDE *OP*|*T*", "L2R_EMPTY_OUTSIDE *OP*|*pro*", "L2R_EMPTY_OUTSIDE *pro*|*T*",
+		"L2R_EMPTY_OUTSIDE *OP*|*pro*|*T*", "L2R_EMPTY_OUTSIDE *RNR*|*RNR*", "L2R_EMPTY_OUTSIDE *", "L2R_EMPTY_OUTSIDE *PRO*|*T*",
+		"L2R_EMPTY_OUTSIDE *OP*|*PRO*|*T*", "L2R_EMPTY_OUTSIDE *T*|*pro*", "L2R_EMPTY_OUTSIDE *T*|*", "L2R_EMPTY_OUTSIDE *pro*|*PRO*", "L2R_EMPTY_OUTSIDE *|*T*",
+		"R2L_EMPTY_OUTSIDE *PRO*", "R2L_EMPTY_OUTSIDE *OP*", "R2L_EMPTY_OUTSIDE *T*", "R2L_EMPTY_OUTSIDE *pro*",
+		"R2L_EMPTY_OUTSIDE *RNR*", "R2L_EMPTY_OUTSIDE *OP*|*T*", "R2L_EMPTY_OUTSIDE *OP*|*pro*", "R2L_EMPTY_OUTSIDE *pro*|*T*",
+		"R2L_EMPTY_OUTSIDE *OP*|*pro*|*T*", "R2L_EMPTY_OUTSIDE *RNR*|*RNR*", "R2L_EMPTY_OUTSIDE *", "R2L_EMPTY_OUTSIDE *PRO*|*T*",
+		"R2L_EMPTY_OUTSIDE *OP*|*PRO*|*T*", "R2L_EMPTY_OUTSIDE *T*|*pro*", "R2L_EMPTY_OUTSIDE *T*|*", "R2L_EMPTY_OUTSIDE *pro*|*PRO*", "R2L_EMPTY_OUTSIDE *|*T*",
+	};
+
+	struct StateScore {
+		tscore score;
+		int split, lecnum;
+
+		StateScore(tscore sc = 0, int sp = -1, int n = -1) : score(sc), split(sp), lecnum(n) {}
+		StateScore(const StateScore & ss) : StateScore(ss.score, ss.split, ss.lecnum) {}
+
+		void reset() { score = 0; split = -1; lecnum = -1; }
+		void refer(tscore sc, int sp, int n) { score = sc; split = sp; lecnum = n; }
+		bool operator<(const tscore & sc) const { return split == -1 || score < sc; }
+	};
+
+	struct StateItem {
 	public:
 		int type;
-		int left, right;
-		ScoreWithSplit jux, l2r, r2l, l2r_solid_both, r2l_solid_both, l2r_solid_outside, r2l_solid_outside;
-		ScoreWithBiSplit l2r_empty_inside, r2l_empty_inside;
-		ScoreAgenda l2r_empty_outside, r2l_empty_outside;
+		int left, right, ecnum;
+		StateScore states[43];
 
 	public:
 
@@ -37,84 +60,14 @@ namespace emptyeisner2nd {
 		StateItem(const StateItem & item);
 		~StateItem();
 
-		void init(const int & l, const int & r);
+		void init(const int & l, const int & r)
+		{ for (int t = 0; t < 43; ++t) states[t].reset(); }
 
-		void updateJUX(const int & split, const tscore & score);
-		void updateL2RSolidBoth(const int & split, const tscore & score);
-		void updateR2LSolidBoth(const int & split, const tscore & score);
-		void updateL2REmptyOutside(const int & split, const tscore & score);
-		void updateR2LEmptyOutside(const int & split, const tscore & score);
-		void updateL2RSolidOutside(const int & split, const tscore & score);
-		void updateR2LSolidOutside(const int & split, const tscore & score);
-		void updateL2REmptyInside(const int & split, const int & innersplit, const tscore & score);
-		void updateR2LEmptyInside(const int & split, const int & innersplit, const tscore & score);
-		void updateL2R(const int & split, const tscore & score);
-		void updateR2L(const int & split, const tscore & score);
+		void updateStates(const tscore & score, const int & split, const int & lecnum, int t)
+		{ if (states[t] < score) states[t].refer(score, split, lecnum); }
 
-		void print(const int & grand);
+		void print();
 	};
-
-	inline void StateItem::updateJUX(const int & split, const tscore & score) {
-		if (jux < score) {
-			jux.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateL2RSolidBoth(const int & split, const tscore & score) {
-		if (l2r_solid_both < score) {
-			l2r_solid_both.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateR2LSolidBoth(const int & split, const tscore & score) {
-		if (r2l_solid_both < score) {
-			r2l_solid_both.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateL2REmptyOutside(const int & split, const tscore & score) {
-		l2r_empty_outside.insertItem(ScoreWithSplit(split, score));
-	}
-
-	inline void StateItem::updateR2LEmptyOutside(const int & split, const tscore & score) {
-		r2l_empty_outside.insertItem(ScoreWithSplit(split, score));
-	}
-
-	inline void StateItem::updateL2RSolidOutside(const int & split, const tscore & score) {
-		if (l2r_solid_outside < score) {
-			l2r_solid_outside.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateR2LSolidOutside(const int & split, const tscore & score) {
-		if (r2l_solid_outside < score) {
-			r2l_solid_outside.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateL2REmptyInside(const int & split, const int & innersplit, const tscore & score) {
-		if (l2r_empty_inside < score) {
-			l2r_empty_inside.refer(split, innersplit, score);
-		}
-	}
-
-	inline void StateItem::updateR2LEmptyInside(const int & split, const int & innersplit, const tscore & score) {
-		if (r2l_empty_inside < score) {
-			r2l_empty_inside.refer(split, innersplit, score);
-		}
-	}
-
-	inline void StateItem::updateL2R(const int & split, const tscore & score) {
-		if (l2r < score) {
-			l2r.refer(split, score);
-		}
-	}
-
-	inline void StateItem::updateR2L(const int & split, const tscore & score) {
-		if (r2l < score) {
-			r2l.refer(split, score);
-		}
-	}
 }
 
 #endif
