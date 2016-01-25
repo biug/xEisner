@@ -37,10 +37,17 @@ namespace emptyeisner2nd {
 		m_vecCorrectArcs.clear();
 		m_nTrainingRound = round;
 		m_nSentenceLength = 0;
+		m_nRealEmpty = 0;
 
 		readEmptySentAndArcs(correct);
 
 		Arcs2BiArcs(m_vecCorrectArcs, m_vecCorrectBiArcs);
+
+		m_nMaxEmpty = 25;
+		if (m_nSentenceLength <= 10) m_nMaxEmpty = 5;
+		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 10;
+		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 15;
+		else if (m_nSentenceLength <= 100) m_nMaxEmpty = 20;
 
 		if (m_nState == ParserState::GOLDTEST) {
 			m_setArcGoldScore.clear();
@@ -64,6 +71,13 @@ namespace emptyeisner2nd {
 		m_nTrainingRound = 0;
 		DependencyTree correct;
 		m_nSentenceLength = sentence.size();
+
+		m_nMaxEmpty = 25;
+		if (m_nSentenceLength <= 10) m_nMaxEmpty = 5;
+		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 10;
+		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 15;
+		else if (m_nSentenceLength <= 100) m_nMaxEmpty = 20;
+
 		for (const auto & token : sentence) {
 			m_lSentence[idx][0].refer(TWord::code(SENT_WORD(token)), TPOSTag::code(SENT_POSTAG(token)));
 			for (int i = TEmptyTag::start(), max_i = TEmptyTag::end(); i < max_i; ++i) {
@@ -94,8 +108,6 @@ namespace emptyeisner2nd {
 
 		decode();
 
-		decodeArcs();
-
 		switch (m_nState) {
 		case ParserState::TRAIN:
 			update();
@@ -104,7 +116,8 @@ namespace emptyeisner2nd {
 			generate(retval, correct);
 			break;
 		case ParserState::GOLDTEST:
-			goldCheck();
+			decodeArcs(m_nRealEmpty);
+			goldCheck(m_nRealEmpty);
 			break;
 		default:
 			break;
@@ -116,12 +129,6 @@ namespace emptyeisner2nd {
 		initArcScore();
 		initBiSiblingArcScore();
 
-		int max_nec = 25;
-		if (m_nSentenceLength <= 10) max_nec = 5;
-		else if (m_nSentenceLength <= 20) max_nec = 10;
-		else if (m_nSentenceLength <= 50) max_nec = 15;
-		else if (m_nSentenceLength <= 100) max_nec = 20;
-
 		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
 
 			for (int l = 0, max_l = m_nSentenceLength - d + 1; l < max_l; ++l) {
@@ -132,16 +139,18 @@ namespace emptyeisner2nd {
 				const tscore & r2l_arc_score = m_vecArcScore[r][l];
 
 				// initialize
-				for (int nec = 0; nec <= max_nec; ++nec) items[nec].init(l, r);
+				for (int nec = 0; nec <= m_nMaxEmpty; ++nec) items[nec].init(l, r);
 
 				for (int s = l; s < r; ++s) {
+
 					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
 					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s + 1][r];
 					int lnec = 0;
-					while (lnec <= max_nec) {
+					while (lnec <= m_nMaxEmpty) {
 						int rnec = 0;
 						StateItem & litem = litems[lnec];
-						while (lnec + rnec <= max_nec) {
+						while (lnec + rnec <= m_nMaxEmpty) {
+
 							StateItem & ritem = ritems[rnec];
 							StateItem & item = items[lnec + rnec];
 
@@ -183,6 +192,7 @@ namespace emptyeisner2nd {
 											ENCODE_EMPTY(s, ec), lnec, R2L_EMPTY_INSIDE);
 								}
 							}
+
 							++rnec;
 						}
 						++lnec;
@@ -190,6 +200,7 @@ namespace emptyeisner2nd {
 				}
 
 				for (int s = l + 1; s < r; ++s) {
+
 					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
 					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s][r];
 					int lnec = 0;
@@ -197,10 +208,11 @@ namespace emptyeisner2nd {
 					tscore l2r_solid_arc_score = m_vecBiSiblingScore[l][r][s] + l2r_arc_score;
 					tscore r2l_solid_arc_score = m_vecBiSiblingScore[r][l][s] + r2l_arc_score;
 
-					while (lnec <= max_nec) {
+					while (lnec <= m_nMaxEmpty) {
 						int rnec = 0;
 						StateItem & litem = litems[lnec];
-						while (lnec + rnec <= max_nec) {
+						while (lnec + rnec <= m_nMaxEmpty) {
+
 							StateItem & ritem = ritems[rnec];
 							StateItem & solidItem = items[lnec + rnec];
 
@@ -242,7 +254,7 @@ namespace emptyeisner2nd {
 								}
 							}
 
-							if (lnec + rnec < max_nec) {
+							if (lnec + rnec < m_nMaxEmpty) {
 								StateItem & emptyItem = items[lnec + rnec + 1];
 								if (litem.states[L2R_SOLID_OUTSIDE].split != -1 && ritem.states[L2R].split != -1) {
 									tscore base_score = litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score;
@@ -286,7 +298,7 @@ namespace emptyeisner2nd {
 
 					int rnec = 0;
 					tscore l2r_solid_both_base_score = m_vecBiSiblingScore[l][r][l] + l2r_arc_score;
-					while (rnec <= max_nec && ritems[rnec].states[R2L].split != -1) {
+					while (rnec <= m_nMaxEmpty && ritems[rnec].states[R2L].split != -1) {
 						// l2r_solid_both
 						items[rnec].updateStates(
 								// right part score
@@ -300,7 +312,7 @@ namespace emptyeisner2nd {
 
 					int lnec = 0;
 					tscore r2l_solid_both_base_score = m_vecBiSiblingScore[r][l][r] + r2l_arc_score;
-					while (lnec <= max_nec && litems[lnec].states[L2R].split != -1) {
+					while (lnec <= m_nMaxEmpty && litems[lnec].states[L2R].split != -1) {
 						// r2l_solid_both
 						items[lnec].updateStates(
 								// left part score
@@ -313,23 +325,21 @@ namespace emptyeisner2nd {
 					}
 
 					lnec = 0;
-					while (lnec <= max_nec && items[lnec].states[L2R_SOLID_BOTH].split != -1) {
+					while (lnec <= m_nMaxEmpty && items[lnec].states[L2R_SOLID_BOTH].split != -1) {
 						StateItem & item = items[lnec];
-						// l2r
-						item.updateStates(
-								item.states[L2R_SOLID_BOTH].score,
-								r, lnec, L2R);
 						// l2r_solid_outside
 						item.updateStates(
 								item.states[L2R_SOLID_BOTH].score,
 								item.states[L2R_SOLID_BOTH].split,
 								item.states[L2R_SOLID_BOTH].lecnum,
 								L2R_SOLID_OUTSIDE);
+
 						++lnec;
 					}
+
 					// inside start from 1
 					lnec = 1;
-					while (lnec <= max_nec && items[lnec].states[L2R_EMPTY_INSIDE].split != -1) {
+					while (lnec <= m_nMaxEmpty && items[lnec].states[L2R_EMPTY_INSIDE].split != -1) {
 						StateItem & item = items[lnec];
 						// l2r_solid_outside
 						item.updateStates(
@@ -337,15 +347,12 @@ namespace emptyeisner2nd {
 								item.states[L2R_EMPTY_INSIDE].split,
 								item.states[L2R_EMPTY_INSIDE].lecnum,
 								L2R_SOLID_OUTSIDE);
+						++lnec;
 					}
 
 					rnec = 0;
-					while (rnec <= max_nec && items[rnec].states[R2L_SOLID_BOTH].split != -1) {
+					while (rnec <= m_nMaxEmpty && items[rnec].states[R2L_SOLID_BOTH].split != -1) {
 						StateItem & item = items[rnec];
-						// r2l
-						item.updateStates(
-								item.states[R2L_SOLID_BOTH].score,
-								l, 0, R2L);
 						// r2l_solid_outside
 						item.updateStates(
 								item.states[R2L_SOLID_BOTH].score,
@@ -356,7 +363,7 @@ namespace emptyeisner2nd {
 					}
 					// inside start from 1
 					rnec = 1;
-					while (rnec <= max_nec && items[rnec].states[R2L_EMPTY_INSIDE].split != -1) {
+					while (rnec <= m_nMaxEmpty && items[rnec].states[R2L_EMPTY_INSIDE].split != -1) {
 						StateItem & item = items[rnec];
 						// r2l_solid_outside
 						item.updateStates(
@@ -364,27 +371,31 @@ namespace emptyeisner2nd {
 								item.states[R2L_EMPTY_INSIDE].split,
 								item.states[R2L_EMPTY_INSIDE].lecnum,
 								R2L_SOLID_OUTSIDE);
+						++rnec;
 					}
 
 					rnec = 0;
 					while (rnec <= 1) {
 						lnec = 0;
 						StateItem & ritem = m_lItems[r][r][rnec];
-						while (lnec + rnec <= max_nec) {
+						while (lnec + rnec <= m_nMaxEmpty) {
 							StateItem & litem = items[lnec];
-							StateItem & item = items[lnec + rnec + 1];
 							if (litem.states[L2R_SOLID_OUTSIDE].split != -1) {
-								// l2r_empty_ouside
-								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
-									item.updateStates(
-											// left part + right part
-											litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score +
-											// bi-sibling arc score
-											biSiblingArcScore(l, r, ENCODE_EMPTY(r + 1, ec)) +
-											// arc score
-											arcScore(l, ENCODE_EMPTY(r + 1, ec)),
-											r, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
+								if (lnec + rnec < m_nMaxEmpty) {
+									StateItem & emptyItem = items[lnec + rnec + 1];
+									// l2r_empty_ouside
+									for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+										emptyItem.updateStates(
+												// left part + right part
+												litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score +
+												// bi-sibling arc score
+												biSiblingArcScore(l, r, ENCODE_EMPTY(r + 1, ec)) +
+												// arc score
+												arcScore(l, ENCODE_EMPTY(r + 1, ec)),
+												r, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
+									}
 								}
+								StateItem & item = items[lnec + rnec];
 								// l2r
 								item.updateStates(
 										litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score,
@@ -394,18 +405,34 @@ namespace emptyeisner2nd {
 						}
 						++rnec;
 					}
+					lnec = 1;
+					while (lnec <= m_nMaxEmpty) {
+						StateItem & litem = items[lnec];
+						StateItem & item = items[lnec];
+						if (litem.states[L2R_EMPTY_OUTSIDE].split != -1) {
+							// l2r
+							for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+								item.updateStates(
+										// empty outside
+										litem.states[L2R_EMPTY_OUTSIDE + ec - 1].score,
+										ENCODE_EMPTY(r, ec), lnec, L2R);
+							}
+						}
+
+						++lnec;
+					}
 
 					lnec = 0;
 					while (lnec <= 1) {
 						rnec = 0;
 						StateItem & litem = m_lItems[l][l][lnec];
-						while (rnec + lnec <= max_nec) {
+						while (rnec + lnec < m_nMaxEmpty) {
 							StateItem & ritem = items[rnec];
-							StateItem & item = items[rnec + lnec + 1];
 							if (ritem.states[R2L_SOLID_OUTSIDE].split != -1) {
+								StateItem & emptyItem = items[rnec + lnec + 1];
 								// r2l_empty_ouside
 								for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
-									item.updateStates(
+									emptyItem.updateStates(
 											// left part + right part
 											ritem.states[R2L_SOLID_OUTSIDE].score + litem.states[R2L].score +
 											// bi-sibling arc score
@@ -414,6 +441,7 @@ namespace emptyeisner2nd {
 											arcScore(r, ENCODE_EMPTY(l, ec)),
 											l, lnec, R2L_EMPTY_OUTSIDE + ec - 1);
 								}
+								StateItem & item = items[rnec + lnec];
 								// r2l
 								item.updateStates(
 										ritem.states[R2L_SOLID_OUTSIDE].score + litem.states[R2L].score,
@@ -423,6 +451,21 @@ namespace emptyeisner2nd {
 						}
 						++lnec;
 					}
+					rnec = 1;
+					while (rnec <= m_nMaxEmpty) {
+						StateItem & ritem = items[rnec];
+						StateItem & item = items[rnec];
+						if (ritem.states[R2L_EMPTY_OUTSIDE].split != -1) {
+							// r2l
+							for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
+								item.updateStates(
+										// empty outside
+										ritem.states[R2L_EMPTY_OUTSIDE + ec - 1].score,
+										ENCODE_EMPTY(l, ec), 0, R2L);
+							}
+						}
+						++rnec;
+					}
 				}
 				else {
 					for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
@@ -431,13 +474,13 @@ namespace emptyeisner2nd {
 								biSiblingArcScore(l, -1, ENCODE_EMPTY(r + 1, ec)) +
 								arcScore(l, ENCODE_EMPTY(r + 1, ec)),
 								r, 1, L2R_EMPTY_OUTSIDE + ec - 1);
+						// l2r with 1 empty node
+						items[1].updateStates(
+								items[1].states[L2R_EMPTY_OUTSIDE + ec - 1].score,
+								ENCODE_EMPTY(l, ec), 1, L2R);
 					}
 					// l2r
 					items[0].updateStates(0, r, 0, L2R);
-					// l2r with 1 empty node
-					items[1].updateStates(
-							items[1].states[L2R_EMPTY_OUTSIDE].score,
-							r, 1, L2R);
 
 					for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
 						// r2l_empty_ouside
@@ -445,13 +488,13 @@ namespace emptyeisner2nd {
 								biSiblingArcScore(r, -1, ENCODE_EMPTY(l, ec)) +
 								arcScore(r, ENCODE_EMPTY(l, ec)),
 								l, 0, R2L_EMPTY_OUTSIDE + ec - 1);
+						// r2l with 1 empty node
+						items[1].updateStates(
+								items[1].states[R2L_EMPTY_OUTSIDE + ec - 1].score,
+								ENCODE_EMPTY(l, ec), 0, R2L);
 					}
 					// r2l
 					items[0].updateStates(0, l, 0, R2L);
-					// r2l with 1 empty node
-					items[1].updateStates(
-							items[1].states[R2L_EMPTY_OUTSIDE].score,
-							l, 0, R2L);
 				}
 			}
 
@@ -461,10 +504,10 @@ namespace emptyeisner2nd {
 				StateItem (&l2ritems)[MAX_EMPTY_COUNT] = m_lItems[l][r - 1];
 				StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
 				// initialize
-				for (int nec = 0; nec <= max_nec; ++nec) items[nec].init(l, r);
+				for (int nec = 0; nec <= m_nMaxEmpty; ++nec) items[nec].init(l, r);
 				// r2l_solid_outside
 				int lnec = 0, rnec = 0;
-				while (lnec <= max_nec && l2ritems[lnec].states[L2R].split != -1) {
+				while (lnec <= m_nMaxEmpty && l2ritems[lnec].states[L2R].split != -1) {
 					items[lnec].updateStates(
 							l2ritems[lnec].states[L2R].score +
 							m_vecBiSiblingScore[r][l][r] +
@@ -478,9 +521,9 @@ namespace emptyeisner2nd {
 					lnec = 0;
 					StateItem (&litems)[MAX_EMPTY_COUNT] = m_lItems[l][s];
 					StateItem (&ritems)[MAX_EMPTY_COUNT] = m_lItems[s][r];
-					while (lnec <= max_nec && litems[lnec].states[R2L].split != -1) {
+					while (lnec <= m_nMaxEmpty && litems[lnec].states[R2L].split != -1) {
 						rnec = 0;
-						while (lnec + rnec <= max_nec && ritems[rnec].states[R2L_SOLID_OUTSIDE].split != -1) {
+						while (lnec + rnec <= m_nMaxEmpty && ritems[rnec].states[R2L_SOLID_OUTSIDE].split != -1) {
 							items[lnec + rnec].updateStates(
 									litems[lnec].states[R2L].score + ritems[rnec].states[R2L_SOLID_OUTSIDE].score,
 									s, lnec, R2L);
@@ -496,34 +539,32 @@ namespace emptyeisner2nd {
 	void DepParser::decodeArcs(int nec) {
 
 		m_vecTrainArcs.clear();
-		std::stack<std::tuple<int, int, int, int>> stack;
-		stack.push(std::tuple<int, int, int, int>(m_nSentenceLength + 1, -1, 0, nec));
-		m_lItems[m_nSentenceLength + 1][0][nec].type = R2L;
+		if (m_lItems[0][m_nSentenceLength][nec].states[R2L].split == -1) return;
+		typedef std::tuple<int, int, int> sItem;
+		std::stack<sItem> stack;
+		stack.push(sItem(0, m_nSentenceLength, nec));
+		m_lItems[0][m_nSentenceLength][nec].type = R2L;
 
 		while (!stack.empty()) {
-			std::tuple<int, int, int, int> span = stack.top();
+			sItem span = stack.top();
 			stack.pop();
-			StateItem & item = m_lItems[std::get<0>(span)][std::get<2>(span)][std::get<3>(span)];
-			int split = std::get<1>(span);
-			int tnec = std::get<3>(span), lnec;
+			StateItem & item = m_lItems[std::get<0>(span)][std::get<1>(span)][std::get<2>(span)];
+			int split = item.states[item.type].split;
+			int tnec = std::get<2>(span), lnec = item.states[item.type].lecnum;
+
+//			std::cout << "total tecnum is " << tnec << std::endl;
+//			item.print(); //debug
 
 			switch (item.type) {
 			case JUX:
-				split = item.states[JUX].split;
-				lnec = item.states[JUX].lecnum;
-
-				m_lItems[split - item.left + 1][item.left][lnec].type = L2R;
-				stack.push(std::tuple<int, int, int, int>(split - item.left + 1, -1, item.left, lnec));
-				m_lItems[item.right - split][split + 1][tnec - lnec].type = R2L;
-				stack.push(std::tuple<int, int, int, int>(item.right - split, -1, split + 1, tnec - lnec));
+				m_lItems[item.left][split][lnec].type = L2R;
+				stack.push(sItem(item.left, split, lnec));
+				m_lItems[split + 1][item.right][tnec - lnec].type = R2L;
+				stack.push(sItem(split + 1, item.right, tnec - lnec));
 				break;
 			case L2R:
-				split = item.states[L2R].split;
-				lnec = item.states[L2R].lecnum;
-
 				if (IS_EMPTY(split)) {
-					item.type = L2R_EMPTY_OUTSIDE;
-					std::get<1>(span) = item.l2r_empty_outside.bestItem().getSplit();
+					item.type = L2R_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
 					stack.push(span);
 					break;
 				}
@@ -531,17 +572,14 @@ namespace emptyeisner2nd {
 					break;
 				}
 
-				m_lItems[split - item.left + 1][item.left].type = L2R_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, m_lItems[split - item.left + 1][item.left].l2r_solid_outside.getSplit(), item.left));
-				m_lItems[item.right - split + 1][split].type = L2R;
-				stack.push(std::tuple<int, int, int>(item.right - split + 1, -1, split));
+				m_lItems[item.left][split][lnec].type = L2R_SOLID_OUTSIDE;
+				stack.push(sItem(item.left, split, lnec));
+				m_lItems[split][item.right][tnec - lnec].type = L2R;
+				stack.push(sItem(split, item.right, tnec - lnec));
 				break;
 			case R2L:
-				split = item.r2l.getSplit();
-
 				if (IS_EMPTY(split)) {
-					item.type = R2L_EMPTY_OUTSIDE;
-					std::get<1>(span) = item.r2l_empty_outside.bestItem().getSplit();
+					item.type = R2L_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
 					stack.push(span);
 					break;
 				}
@@ -549,109 +587,128 @@ namespace emptyeisner2nd {
 					break;
 				}
 
-				m_lItems[item.right - split + 1][split].type = R2L_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(item.right - split + 1, m_lItems[item.right - split + 1][split].r2l_solid_outside.getSplit(), split));
-				m_lItems[split - item.left + 1][item.left].type = R2L;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
+				m_lItems[split][item.right][tnec - lnec].type = R2L_SOLID_OUTSIDE;
+				stack.push(sItem(split, item.right, tnec - lnec));
+				m_lItems[item.left][split][lnec].type = R2L;
+				stack.push(sItem(item.left, split, lnec));
 				break;
 			case L2R_SOLID_BOTH:
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.l2r_solid_both.getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
 
 				if (split == item.left) {
-					m_lItems[item.right - split][split + 1].type = R2L;
-					stack.push(std::tuple<int, int, int>(item.right - split, -1, split + 1));
+					m_lItems[item.left + 1][item.right][tnec - lnec].type = R2L;
+					stack.push(sItem(item.left + 1, item.right, tnec - lnec));
 				}
 				else {
-					m_lItems[split - item.left + 1][item.left].type = L2R_SOLID_OUTSIDE;
-					stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
-					m_lItems[item.right - split + 1][split].type = JUX;
-					stack.push(std::tuple<int, int, int>(item.right - split + 1, -1, split));
+					m_lItems[item.left][split][lnec].type = L2R_SOLID_OUTSIDE;
+					stack.push(sItem(item.left, split, lnec));
+					m_lItems[split][item.right][tnec - lnec].type = JUX;
+					stack.push(sItem(split, item.right, tnec - lnec));
 				}
 				break;
 			case R2L_SOLID_BOTH:
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.r2l_solid_both.getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.right == m_nSentenceLength ? -1 : item.right, item.left));
 
 				if (split == item.right) {
-					m_lItems[split - item.left][item.left].type = L2R;
-					stack.push(std::tuple<int, int, int>(split - item.left, -1, item.left));
+					m_lItems[item.left][item.right - 1][lnec].type = L2R;
+					stack.push(sItem(item.left, item.right - 1, lnec));
 				}
 				else {
-					m_lItems[item.right - split + 1][split].type = R2L_SOLID_OUTSIDE;
-					stack.push(std::tuple<int, int, int>(item.right - split + 1, -1, split));
-					m_lItems[split - item.left + 1][item.left].type = JUX;
-					stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
+					m_lItems[split][item.right][tnec - lnec].type = R2L_SOLID_OUTSIDE;
+					stack.push(sItem(split, item.right, tnec - lnec));
+					m_lItems[item.left][split][lnec].type = JUX;
+					stack.push(sItem(item.left, split, lnec));
 				}
 				break;
 			case L2R_EMPTY_INSIDE:
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.l2r_empty_inside.getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
 
-				split = DECODE_EMPTY_POS(split);
-
-				m_lItems[split - item.left + 1][item.left].type = L2R_EMPTY_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, item.l2r_empty_inside.getInnerSplit(), item.left));
-				m_lItems[item.right - split][split + 1].type = R2L;
-				stack.push(std::tuple<int, int, int>(item.right - split, -1, split + 1));
+				m_lItems[item.left][DECODE_EMPTY_POS(split)][lnec].type = L2R_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
+				stack.push(sItem(item.left, DECODE_EMPTY_POS(split), lnec));
+				m_lItems[DECODE_EMPTY_POS(split) + 1][item.right][tnec - lnec].type = R2L;
+				stack.push(sItem(DECODE_EMPTY_POS(split) + 1, item.right, tnec - lnec));
 				break;
 			case R2L_EMPTY_INSIDE:
 				if (item.left == item.right) {
 					break;
 				}
-				split = item.r2l_empty_inside.getSplit();
 				m_vecTrainArcs.push_back(BiGram<int>(item.right, item.left));
 
-				split = DECODE_EMPTY_POS(split);
-
-				m_lItems[item.right - split][split + 1].type = R2L_EMPTY_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(item.right - split, item.r2l_empty_inside.getInnerSplit(), split + 1));
-				m_lItems[split - item.left + 1][item.left].type = L2R;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
+				m_lItems[DECODE_EMPTY_POS(split) + 1][item.right][tnec - lnec].type = R2L_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
+				stack.push(sItem(DECODE_EMPTY_POS(split) + 1, item.right, tnec - lnec));
+				m_lItems[item.left][DECODE_EMPTY_POS(split)][lnec].type = L2R;
+				stack.push(sItem(item.left, DECODE_EMPTY_POS(split), lnec));
 				break;
-			case L2R_EMPTY_OUTSIDE:
-				m_vecTrainArcs.push_back(BiGram<int>(item.left, ENCODE_EMPTY(item.right + 1, DECODE_EMPTY_TAG(split))));
+			case L2R_EMPTY_OUTSIDE + 0:
+			case L2R_EMPTY_OUTSIDE + 1:
+			case L2R_EMPTY_OUTSIDE + 2:
+			case L2R_EMPTY_OUTSIDE + 3:
+			case L2R_EMPTY_OUTSIDE + 4:
+			case L2R_EMPTY_OUTSIDE + 5:
+			case L2R_EMPTY_OUTSIDE + 6:
+			case L2R_EMPTY_OUTSIDE + 7:
+			case L2R_EMPTY_OUTSIDE + 8:
+			case L2R_EMPTY_OUTSIDE + 9:
+			case L2R_EMPTY_OUTSIDE + 10:
+			case L2R_EMPTY_OUTSIDE + 11:
+			case L2R_EMPTY_OUTSIDE + 12:
+			case L2R_EMPTY_OUTSIDE + 13:
+			case L2R_EMPTY_OUTSIDE + 14:
+			case L2R_EMPTY_OUTSIDE + 15:
+			case L2R_EMPTY_OUTSIDE + 16:
+				m_vecTrainArcs.push_back(BiGram<int>(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1)));
 
 				if (item.left == item.right) {
 					break;
 				}
 
-				split = DECODE_EMPTY_POS(split);
-
-				m_lItems[split - item.left + 1][item.left].type = L2R_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
-				m_lItems[item.right - split + 1][split].type = L2R;
-				stack.push(std::tuple<int, int, int>(item.right - split + 1, -1, split));
+				m_lItems[item.left][split][lnec].type = L2R_SOLID_OUTSIDE;
+				stack.push(sItem(item.left, split, lnec));
+				m_lItems[split][item.right][tnec - lnec - 1].type = L2R;
+				stack.push(sItem(split, item.right, tnec - lnec - 1));
 				break;
-			case R2L_EMPTY_OUTSIDE:
-				m_vecTrainArcs.push_back(BiGram<int>(item.right, ENCODE_EMPTY(item.left, DECODE_EMPTY_TAG(split))));
+			case R2L_EMPTY_OUTSIDE + 0:
+			case R2L_EMPTY_OUTSIDE + 1:
+			case R2L_EMPTY_OUTSIDE + 2:
+			case R2L_EMPTY_OUTSIDE + 3:
+			case R2L_EMPTY_OUTSIDE + 4:
+			case R2L_EMPTY_OUTSIDE + 5:
+			case R2L_EMPTY_OUTSIDE + 6:
+			case R2L_EMPTY_OUTSIDE + 7:
+			case R2L_EMPTY_OUTSIDE + 8:
+			case R2L_EMPTY_OUTSIDE + 9:
+			case R2L_EMPTY_OUTSIDE + 10:
+			case R2L_EMPTY_OUTSIDE + 11:
+			case R2L_EMPTY_OUTSIDE + 12:
+			case R2L_EMPTY_OUTSIDE + 13:
+			case R2L_EMPTY_OUTSIDE + 14:
+			case R2L_EMPTY_OUTSIDE + 15:
+			case R2L_EMPTY_OUTSIDE + 16:
+				m_vecTrainArcs.push_back(BiGram<int>(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1)));
 
 				if (item.left == item.right) {
 					break;
 				}
 
-				split = DECODE_EMPTY_POS(split);
-
-				m_lItems[item.right - split + 1][split].type = R2L_SOLID_OUTSIDE;
-				stack.push(std::tuple<int, int, int>(item.right - split + 1, -1, split));
-				m_lItems[split - item.left + 1][item.left].type = R2L;
-				stack.push(std::tuple<int, int, int>(split - item.left + 1, -1, item.left));
+				m_lItems[split][item.right][tnec - lnec - 1].type = R2L_SOLID_OUTSIDE;
+				stack.push(sItem(split, item.right, tnec - lnec - 1));
+				m_lItems[item.left][split][lnec].type = R2L;
+				stack.push(sItem(item.left, split, lnec));
 				break;
 			case L2R_SOLID_OUTSIDE:
 				if (item.left == item.right) {
 					break;
 				}
 
-				split = item.l2r_solid_outside.getSplit();
 				item.type = IS_EMPTY(split) ? L2R_EMPTY_INSIDE : L2R_SOLID_BOTH;
 				stack.push(span);
 				break;
@@ -661,12 +718,11 @@ namespace emptyeisner2nd {
 				}
 				if (item.right == m_nSentenceLength) {
 					m_vecTrainArcs.push_back(BiGram<int>(-1, item.left));
-					m_lItems[item.right - item.left][item.left].type = L2R;
-					stack.push(std::tuple<int, int, int>(item.right - item.left, -1, item.left));
+					m_lItems[item.left][item.right - 1][lnec].type = L2R;
+					stack.push(sItem(item.left, item.right - 1, lnec));
 					break;
 				}
 
-				split = item.r2l_solid_outside.getSplit();
 				item.type = IS_EMPTY(split) ? R2L_EMPTY_INSIDE : R2L_SOLID_BOTH;
 				stack.push(span);
 				break;
@@ -763,12 +819,13 @@ namespace emptyeisner2nd {
 		}
 	}
 
-	void DepParser::goldCheck() {
+	void DepParser::goldCheck(int nec) {
+		if (m_nRealEmpty != nec) return;
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
-		std::cout << "total score is " <<  m_lItems[m_nSentenceLength + 1][0].r2l.getScore() << std::endl; //debug
-		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[m_nSentenceLength + 1][0].r2l.getScore() / GOLD_POS_SCORE != m_vecCorrectArcs.size() + m_vecCorrectBiArcs.size()) {
+		std::cout << "total empty node is " << nec << " total score is " <<  m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl; //debug
+		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[0][m_nSentenceLength][nec].states[R2L].score / GOLD_POS_SCORE != m_vecCorrectArcs.size() + m_vecCorrectBiArcs.size()) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
-			std::cout << "score is " << m_lItems[m_nSentenceLength + 1][0].r2l.getScore() << std::endl;
+			std::cout << "score is " << m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl;
 			std::cout << "len is " << m_vecTrainArcs.size() << std::endl;
 			++m_nTotalErrors;
 		}
@@ -816,30 +873,11 @@ namespace emptyeisner2nd {
 			decltype(m_vecArcScore)(
 				m_nSentenceLength + 1,
 				std::vector<tscore>(m_nSentenceLength));
-		m_vecFirstOrderEmptyScore =
-			decltype(m_vecFirstOrderEmptyScore)(
-				m_nSentenceLength,
-				std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>(m_nSentenceLength));
 		for (int d = 1; d <= m_nSentenceLength; ++d) {
 			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 				if (d > 1) {
 					m_vecArcScore[i][i + d - 1] = arcScore(i, i + d - 1);
 					m_vecArcScore[i + d - 1][i] = arcScore(i + d - 1, i);
-				}
-
-				for (int t = TEmptyTag::start(), max_t = TEmptyTag::end(); t < max_t; ++t) {
-					if (m_nState == ParserState::GOLDTEST || testEmptyNode(i, ENCODE_EMPTY(i + d, t))) {
-						tscore score = arcScore(i, ENCODE_EMPTY(i + d, t));
-						if (score != 0) {
-							m_vecFirstOrderEmptyScore[i][i + d - 1].insertItem(ScoreWithType(t, score));
-						}
-					}
-					if (m_nState == ParserState::GOLDTEST || testEmptyNode(i + d - 1, ENCODE_EMPTY(i, t))) {
-						tscore score = arcScore(i + d - 1, ENCODE_EMPTY(i, t));
-						if (score != 0) {
-							m_vecFirstOrderEmptyScore[i + d - 1][i].insertItem(ScoreWithType(t, score));
-						}
-					}
 				}
 			}
 		}
@@ -905,9 +943,10 @@ namespace emptyeisner2nd {
 				TPOSTag::code(TEmptyTag::key(i))
 				);
 		}
-		int idx = 0, idxwe = 0;
+		int idx = 0;
 		for (const auto & node : tcorrect) {
 			if (TREENODE_POSTAG(node) == EMPTYTAG) {
+				++m_nRealEmpty;
 				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), ENCODE_EMPTY(idx, TEmptyTag::code(TREENODE_WORD(node)))));
 			}
 			else {

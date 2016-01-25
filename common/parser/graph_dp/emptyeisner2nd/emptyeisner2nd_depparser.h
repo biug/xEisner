@@ -26,18 +26,19 @@ namespace emptyeisner2nd {
 		std::vector<Arc> m_vecTrainArcs;
 		std::vector<BiArc> m_vecTrainBiArcs;
 		int m_nSentenceLength;
+		int m_nMaxEmpty;
+		int m_nRealEmpty;
 
 		tscore m_nRetval;
 		std::vector<std::vector<tscore>> m_vecArcScore;
 		std::vector<std::vector<std::vector<tscore>>> m_vecBiSiblingScore;
-		std::vector<std::vector<AgendaBeam<ScoreWithType, MAX_EMPTY_SIZE>>> m_vecFirstOrderEmptyScore;
 
 		std::unordered_set<BiGram<int>> m_setArcGoldScore;
 		std::unordered_set<TriGram<int>> m_setBiSiblingArcGoldScore;
 
 		void update();
 		void generate(DependencyTree * retval, const DependencyTree & correct);
-		void goldCheck();
+		void goldCheck(int nec);
 
 		void readEmptySentAndArcs(const DependencyTree & correct);
 

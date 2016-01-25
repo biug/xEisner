@@ -104,6 +104,7 @@ namespace emptyeisner2nd {
 			while (input >> ref_sent) {
 				++nRound;
 				parser->train(ref_sent, nRound);
+//				break;
 			}
 		}
 		input.close();

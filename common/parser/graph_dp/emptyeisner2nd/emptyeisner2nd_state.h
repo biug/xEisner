@@ -23,18 +23,7 @@ namespace emptyeisner2nd {
 		R2L_EMPTY_OUTSIDE = L2R_EMPTY_OUTSIDE + 17,
 	};
 
-	std::string TYPE_NAME[] = {
-		"JUX", "L2R", "R2L", "L2R_SOLID_BOTH", "R2L_SOLID_BOTH",
-		"L2R_EMPTY_INSIDE", "R2L_EMPTY_INSIDE", "L2R_SOLID_OUTSIDE", "R2L_SOLID_OUTSIDE",
-		"L2R_EMPTY_OUTSIDE *PRO*", "L2R_EMPTY_OUTSIDE *OP*", "L2R_EMPTY_OUTSIDE *T*", "L2R_EMPTY_OUTSIDE *pro*",
-		"L2R_EMPTY_OUTSIDE *RNR*", "L2R_EMPTY_OUTSIDE *OP*|*T*", "L2R_EMPTY_OUTSIDE *OP*|*pro*", "L2R_EMPTY_OUTSIDE *pro*|*T*",
-		"L2R_EMPTY_OUTSIDE *OP*|*pro*|*T*", "L2R_EMPTY_OUTSIDE *RNR*|*RNR*", "L2R_EMPTY_OUTSIDE *", "L2R_EMPTY_OUTSIDE *PRO*|*T*",
-		"L2R_EMPTY_OUTSIDE *OP*|*PRO*|*T*", "L2R_EMPTY_OUTSIDE *T*|*pro*", "L2R_EMPTY_OUTSIDE *T*|*", "L2R_EMPTY_OUTSIDE *pro*|*PRO*", "L2R_EMPTY_OUTSIDE *|*T*",
-		"R2L_EMPTY_OUTSIDE *PRO*", "R2L_EMPTY_OUTSIDE *OP*", "R2L_EMPTY_OUTSIDE *T*", "R2L_EMPTY_OUTSIDE *pro*",
-		"R2L_EMPTY_OUTSIDE *RNR*", "R2L_EMPTY_OUTSIDE *OP*|*T*", "R2L_EMPTY_OUTSIDE *OP*|*pro*", "R2L_EMPTY_OUTSIDE *pro*|*T*",
-		"R2L_EMPTY_OUTSIDE *OP*|*pro*|*T*", "R2L_EMPTY_OUTSIDE *RNR*|*RNR*", "R2L_EMPTY_OUTSIDE *", "R2L_EMPTY_OUTSIDE *PRO*|*T*",
-		"R2L_EMPTY_OUTSIDE *OP*|*PRO*|*T*", "R2L_EMPTY_OUTSIDE *T*|*pro*", "R2L_EMPTY_OUTSIDE *T*|*", "R2L_EMPTY_OUTSIDE *pro*|*PRO*", "R2L_EMPTY_OUTSIDE *|*T*",
-	};
+	extern std::string TYPE_NAME[43];
 
 	struct StateScore {
 		tscore score;
@@ -51,7 +40,7 @@ namespace emptyeisner2nd {
 	struct StateItem {
 	public:
 		int type;
-		int left, right, ecnum;
+		int left, right;
 		StateScore states[43];
 
 	public:
@@ -61,7 +50,14 @@ namespace emptyeisner2nd {
 		~StateItem();
 
 		void init(const int & l, const int & r)
-		{ for (int t = 0; t < 43; ++t) states[t].reset(); }
+		{
+			left = l;
+			right = r;
+			type = -1;
+			for (int t = 0; t < 43; ++t) {
+				states[t].reset();
+			}
+		}
 
 		void updateStates(const tscore & score, const int & split, const int & lecnum, int t)
 		{ if (states[t] < score) states[t].refer(score, split, lecnum); }

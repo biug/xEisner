@@ -82,9 +82,6 @@ namespace emptyeisner2nd {
 							biarcs.push_back(BiArc(head, -1, itr->second()));
 						}
 						else {
-							if (IS_EMPTY((itr + 1)->second())) {
-								biarcs.push_back(BiArc(head, itr == itr_e - 2 || ARC_RIGHT(head, (itr + 2)->second()) ? -1 : (itr + 2)->second(), itr->second()));
-							}
 							biarcs.push_back(BiArc(head, (itr + 1)->second(), itr->second()));
 						}
 					}
@@ -93,9 +90,6 @@ namespace emptyeisner2nd {
 							biarcs.push_back(BiArc(head, -1, itr->second()));
 						}
 						else {
-							if (IS_EMPTY((itr - 1)->second())) {
-								biarcs.push_back(BiArc(head, itr == itr_s + 1 || ARC_LEFT(head, (itr - 2)->second()) ? -1 : (itr - 2)->second(), itr->second()));
-							}
 							biarcs.push_back(BiArc(head, (itr - 1)->second(), itr->second()));
 						}
 					}
