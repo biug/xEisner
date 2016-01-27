@@ -20,7 +20,7 @@ namespace emptyeisner2nd {
 		L2R_SOLID_OUTSIDE,
 		R2L_SOLID_OUTSIDE,
 		L2R_EMPTY_OUTSIDE,
-		R2L_EMPTY_OUTSIDE = L2R_EMPTY_OUTSIDE + 17,
+		R2L_EMPTY_OUTSIDE = L2R_EMPTY_OUTSIDE + MAX_EMPTY_SIZE,
 	};
 
 	extern std::string TYPE_NAME[43];
@@ -41,7 +41,7 @@ namespace emptyeisner2nd {
 	public:
 		int type;
 		int left, right;
-		StateScore states[43];
+		StateScore states[MAX_ACTION_SIZE];
 
 	public:
 

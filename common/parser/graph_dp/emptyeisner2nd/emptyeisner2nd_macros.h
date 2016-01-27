@@ -6,11 +6,12 @@
 #include "include/learning/perceptron/packed_score.h"
 
 namespace emptyeisner2nd {
-#define OUTPUT_STEP 1000
+#define OUTPUT_STEP 10
 
-#define AGENDA_SIZE		8
-#define MAX_EMPTY_SIZE	17
+#define MAX_EMPTY_SIZE	1
 #define MAX_EMPTY_COUNT	26
+
+#define MAX_ACTION_SIZE (9 + (MAX_EMPTY_SIZE << 1))
 
 #define EMPTYTAG			"EMCAT"
 
@@ -24,8 +25,6 @@ namespace emptyeisner2nd {
 
 #define ARC_LEFT(X,Y)			(IS_EMPTY(Y) ? LESS_EMPTY_SOLID(Y,X) : LESS_SOLID_SOLID(Y,X))
 #define ARC_RIGHT(X,Y)			(IS_EMPTY(Y) ? LESS_SOLID_EMPTY(X,Y) : LESS_SOLID_SOLID(X,Y))
-
-	typedef AgendaBeam<ScoreWithSplit, AGENDA_SIZE> ScoreAgenda;
 
 	typedef BiGram<int> Arc;
 	typedef TriGram<int> BiArc;

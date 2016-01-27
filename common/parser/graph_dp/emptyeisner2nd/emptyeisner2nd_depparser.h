@@ -28,6 +28,7 @@ namespace emptyeisner2nd {
 		int m_nSentenceLength;
 		int m_nMaxEmpty;
 		int m_nRealEmpty;
+		int m_nSentenceCount;
 
 		tscore m_nRetval;
 		std::vector<std::vector<tscore>> m_vecArcScore;
@@ -47,7 +48,6 @@ namespace emptyeisner2nd {
 		void initArcScore();
 		void initBiSiblingArcScore();
 
-		bool testEmptyNode(const int & p, const int & c);
 		void getOrUpdateSiblingScore(const int & p, const int & c, const int & amount);
 		void getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
 

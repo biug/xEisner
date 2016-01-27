@@ -1,5 +1,6 @@
 #include <cmath>
 #include <stack>
+#include <thread>
 #include <algorithm>
 #include <unordered_set>
 
@@ -18,6 +19,7 @@ namespace emptyeisner2nd {
 		DepParserBase(nState) {
 
 		m_nSentenceLength = 0;
+		m_nSentenceCount = 0;
 
 		m_pWeight = new Weightec2nd(sFeatureInput, sFeatureOut, m_nScoreIndex);
 
@@ -35,18 +37,18 @@ namespace emptyeisner2nd {
 	void DepParser::train(const DependencyTree & correct, const int & round) {
 		// initialize
 		m_vecCorrectArcs.clear();
-		m_nTrainingRound = round;
 		m_nSentenceLength = 0;
 		m_nRealEmpty = 0;
+		m_nSentenceCount = round;
 
 		readEmptySentAndArcs(correct);
 
 		Arcs2BiArcs(m_vecCorrectArcs, m_vecCorrectBiArcs);
 
 		m_nMaxEmpty = 25;
-		if (m_nSentenceLength <= 10) m_nMaxEmpty = 5;
-		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 10;
-		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 15;
+		if (m_nSentenceLength <= 10) m_nMaxEmpty = 4;
+		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 8;
+		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 12;
 		else if (m_nSentenceLength <= 100) m_nMaxEmpty = 20;
 
 		if (m_nState == ParserState::GOLDTEST) {
@@ -60,22 +62,23 @@ namespace emptyeisner2nd {
 
 		m_pWeight->referRound(round);
 		work(nullptr, correct);
-		if (m_nTrainingRound % OUTPUT_STEP == 0) {
-			std::cout << m_nTotalErrors << " / " << m_nTrainingRound << std::endl;
+		if (m_nSentenceCount % OUTPUT_STEP == 0) {
+			std::cout << m_nTotalErrors << " / " << m_nTrainingRound << " with " << m_nSentenceCount << " sent" << std::endl;
 			//printTime();
 		}
 	}
 
 	void DepParser::parse(const Sentence & sentence, DependencyTree * retval) {
 		int idx = 0;
+		m_nRealEmpty = 0;
 		m_nTrainingRound = 0;
 		DependencyTree correct;
 		m_nSentenceLength = sentence.size();
 
 		m_nMaxEmpty = 25;
-		if (m_nSentenceLength <= 10) m_nMaxEmpty = 5;
-		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 10;
-		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 15;
+		if (m_nSentenceLength <= 10) m_nMaxEmpty = 4;
+		else if (m_nSentenceLength <= 20) m_nMaxEmpty = 8;
+		else if (m_nSentenceLength <= 50) m_nMaxEmpty = 12;
 		else if (m_nSentenceLength <= 100) m_nMaxEmpty = 20;
 
 		for (const auto & token : sentence) {
@@ -108,11 +111,30 @@ namespace emptyeisner2nd {
 
 		decode();
 
+		// find best average tree
+		int maxEC = m_nRealEmpty;
+		double maxScore = (double)m_lItems[0][m_nSentenceLength][maxEC].states[R2L].score / (double)(m_nSentenceLength + maxEC);
+		for (int ec = 0; ec <= m_nMaxEmpty; ++ec) {
+			double averageScore = (double)m_lItems[0][m_nSentenceLength][ec].states[R2L].score / (double)(m_nSentenceLength + ec);
+			if (averageScore > maxScore) {
+				maxEC = ec;
+				maxScore = averageScore;
+			}
+		}
+
 		switch (m_nState) {
 		case ParserState::TRAIN:
+			// update twice
+			decodeArcs(maxEC);
 			update();
+			if (maxEC != m_nRealEmpty) {
+				decodeArcs(m_nRealEmpty);
+				update();
+			}
+			std::cout << "real empty node is " << m_nRealEmpty << " train empty node is " << maxEC << std::endl;
 			break;
 		case ParserState::PARSE:
+			decodeArcs(maxEC);
 			generate(retval, correct);
 			break;
 		case ParserState::GOLDTEST:
@@ -132,6 +154,7 @@ namespace emptyeisner2nd {
 		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
 
 			for (int l = 0, max_l = m_nSentenceLength - d + 1; l < max_l; ++l) {
+
 
 				int r = l + d - 1;
 				StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
@@ -648,62 +671,6 @@ namespace emptyeisner2nd {
 				m_lItems[item.left][DECODE_EMPTY_POS(split)][lnec].type = L2R;
 				stack.push(sItem(item.left, DECODE_EMPTY_POS(split), lnec));
 				break;
-			case L2R_EMPTY_OUTSIDE + 0:
-			case L2R_EMPTY_OUTSIDE + 1:
-			case L2R_EMPTY_OUTSIDE + 2:
-			case L2R_EMPTY_OUTSIDE + 3:
-			case L2R_EMPTY_OUTSIDE + 4:
-			case L2R_EMPTY_OUTSIDE + 5:
-			case L2R_EMPTY_OUTSIDE + 6:
-			case L2R_EMPTY_OUTSIDE + 7:
-			case L2R_EMPTY_OUTSIDE + 8:
-			case L2R_EMPTY_OUTSIDE + 9:
-			case L2R_EMPTY_OUTSIDE + 10:
-			case L2R_EMPTY_OUTSIDE + 11:
-			case L2R_EMPTY_OUTSIDE + 12:
-			case L2R_EMPTY_OUTSIDE + 13:
-			case L2R_EMPTY_OUTSIDE + 14:
-			case L2R_EMPTY_OUTSIDE + 15:
-			case L2R_EMPTY_OUTSIDE + 16:
-				m_vecTrainArcs.push_back(BiGram<int>(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1)));
-
-				if (item.left == item.right) {
-					break;
-				}
-
-				m_lItems[item.left][split][lnec].type = L2R_SOLID_OUTSIDE;
-				stack.push(sItem(item.left, split, lnec));
-				m_lItems[split][item.right][tnec - lnec - 1].type = L2R;
-				stack.push(sItem(split, item.right, tnec - lnec - 1));
-				break;
-			case R2L_EMPTY_OUTSIDE + 0:
-			case R2L_EMPTY_OUTSIDE + 1:
-			case R2L_EMPTY_OUTSIDE + 2:
-			case R2L_EMPTY_OUTSIDE + 3:
-			case R2L_EMPTY_OUTSIDE + 4:
-			case R2L_EMPTY_OUTSIDE + 5:
-			case R2L_EMPTY_OUTSIDE + 6:
-			case R2L_EMPTY_OUTSIDE + 7:
-			case R2L_EMPTY_OUTSIDE + 8:
-			case R2L_EMPTY_OUTSIDE + 9:
-			case R2L_EMPTY_OUTSIDE + 10:
-			case R2L_EMPTY_OUTSIDE + 11:
-			case R2L_EMPTY_OUTSIDE + 12:
-			case R2L_EMPTY_OUTSIDE + 13:
-			case R2L_EMPTY_OUTSIDE + 14:
-			case R2L_EMPTY_OUTSIDE + 15:
-			case R2L_EMPTY_OUTSIDE + 16:
-				m_vecTrainArcs.push_back(BiGram<int>(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1)));
-
-				if (item.left == item.right) {
-					break;
-				}
-
-				m_lItems[split][item.right][tnec - lnec - 1].type = R2L_SOLID_OUTSIDE;
-				stack.push(sItem(split, item.right, tnec - lnec - 1));
-				m_lItems[item.left][split][lnec].type = R2L;
-				stack.push(sItem(item.left, split, lnec));
-				break;
 			case L2R_SOLID_OUTSIDE:
 				if (item.left == item.right) {
 					break;
@@ -726,6 +693,30 @@ namespace emptyeisner2nd {
 				item.type = IS_EMPTY(split) ? R2L_EMPTY_INSIDE : R2L_SOLID_BOTH;
 				stack.push(span);
 				break;
+			case L2R_EMPTY_OUTSIDE + 0:
+				m_vecTrainArcs.push_back(BiGram<int>(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1)));
+
+				if (item.left == item.right) {
+					break;
+				}
+
+				m_lItems[item.left][split][lnec].type = L2R_SOLID_OUTSIDE;
+				stack.push(sItem(item.left, split, lnec));
+				m_lItems[split][item.right][tnec - lnec - 1].type = L2R;
+				stack.push(sItem(split, item.right, tnec - lnec - 1));
+				break;
+			case R2L_EMPTY_OUTSIDE + 0:
+				m_vecTrainArcs.push_back(BiGram<int>(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1)));
+
+				if (item.left == item.right) {
+					break;
+				}
+
+				m_lItems[split][item.right][tnec - lnec - 1].type = R2L_SOLID_OUTSIDE;
+				stack.push(sItem(split, item.right, tnec - lnec - 1));
+				m_lItems[item.left][split][lnec].type = R2L;
+				stack.push(sItem(item.left, split, lnec));
+				break;
 			default:
 				break;
 			}
@@ -733,6 +724,7 @@ namespace emptyeisner2nd {
 	}
 
 	void DepParser::update() {
+		++m_nTrainingRound;
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 
 		std::unordered_set<Arc> positiveArcs;
@@ -769,7 +761,7 @@ namespace emptyeisner2nd {
 		else {
 			for (const auto & arc : m_vecTrainArcs) {
 				if (IS_EMPTY(arc.second())) {
-					std::cout << "generate an empty edge at " << m_nTrainingRound << std::endl;
+					std::cout << "generate an empty edge at " << m_nSentenceCount << std::endl;
 					break;
 				}
 			}
@@ -822,7 +814,7 @@ namespace emptyeisner2nd {
 	void DepParser::goldCheck(int nec) {
 		if (m_nRealEmpty != nec) return;
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
-		std::cout << "total empty node is " << nec << " total score is " <<  m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl; //debug
+//		std::cout << "total empty node is " << nec << " total score is " <<  m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl; //debug
 		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[0][m_nSentenceLength][nec].states[R2L].score / GOLD_POS_SCORE != m_vecCorrectArcs.size() + m_vecCorrectBiArcs.size()) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
 			std::cout << "score is " << m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl;
@@ -953,10 +945,6 @@ namespace emptyeisner2nd {
 				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), idx++));
 			}
 		}
-	}
-
-	bool DepParser::testEmptyNode(const int & p, const int & c) {
-		return m_pWeight->testEmptyNode(p, c, m_lSentence);
 	}
 
 	void DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
