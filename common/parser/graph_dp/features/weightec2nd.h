@@ -36,7 +36,7 @@ protected:
 	WordPOSTagIntMap m_mapC2wC1p;
 
 	WordPOSTag m_tkStart, m_tkEnd, m_tkEmpty;
-	int m_nScoreIndex, m_nTrainingRound;
+	int m_nScoreIndex;
 
 public:
 	Weightec2nd(const std::string & sRead, const std::string & sRecord, int nParserState);
@@ -48,8 +48,8 @@ public:
 
 	void referRound(const int & nRound);
 	void init(const WordPOSTag & tkEmpty, const WordPOSTag & tkStart, const WordPOSTag & tkEnd);
-	tscore getOrUpdateArcScore(const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
-	tscore getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
+	tscore getOrUpdateArcScore(const int & p, const int & c, const int & amount, int round, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
+	tscore getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & amount, int round, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
 };
 
 #endif

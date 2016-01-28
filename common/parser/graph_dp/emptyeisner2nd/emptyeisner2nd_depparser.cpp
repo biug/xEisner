@@ -102,7 +102,6 @@ namespace emptyeisner2nd {
 			}
 		}
 
-		m_pWeight->referRound(round);
 		work(nullptr, correct);
 		if (m_nSentenceCount % OUTPUT_STEP == 0) {
 			std::cout << m_nTotalErrors << " / " << m_nTrainingRound << " with " << m_nSentenceCount << " sent" << std::endl;
@@ -140,24 +139,19 @@ namespace emptyeisner2nd {
 
 		// find best average tree
 		int maxEC = m_nRealEmpty;
+		std::vector<int> vecBetterBad;
 		double maxScore = (double)m_lItems[0][m_nSentenceLength][maxEC].states[R2L].score / (double)(m_nSentenceLength + maxEC);
 		for (int ec = 0; ec <= m_nMaxEmpty; ++ec) {
 			double averageScore = (double)m_lItems[0][m_nSentenceLength][ec].states[R2L].score / (double)(m_nSentenceLength + ec);
 			if (averageScore > maxScore) {
-				maxEC = ec;
-				maxScore = averageScore;
+				vecBetterBad.push_back(ec);
 			}
 		}
 
 		switch (m_nState) {
 		case ParserState::TRAIN:
-			// update twice
-//			for (int ec = 0; ec <= m_nMaxEmpty; ++ec) {
-//				decodeArcs(ec);
-//				update();
-//			}
 			decodeArcs(m_nRealEmpty);
-			update();
+			update(vecBetterBad);
 //			std::cout << "real empty node is " << m_nRealEmpty << " train empty node is " << maxEC << std::endl;
 			break;
 		case ParserState::PARSE:
@@ -820,7 +814,8 @@ namespace emptyeisner2nd {
 		}
 	}
 
-	void DepParser::update() {
+	void DepParser::update(const std::vector<int> & vecBad) {
+		++m_nTrainingRound;
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 
 		std::unordered_set<Arc> positiveArcs;
@@ -853,20 +848,39 @@ namespace emptyeisner2nd {
 		if (!positiveBiArcs.empty() || !negativeBiArcs.empty()) {
 			++m_nTotalErrors;
 		}
-		else {
-			for (const auto & arc : m_vecTrainArcs) {
-				if (IS_EMPTY(arc.second())) {
-//					std::cout << "generate an empty edge at " << m_nSentenceCount << std::endl;
-					break;
-				}
-			}
-		}
-		++m_nTrainingRound;
 		for (const auto & arc : positiveBiArcs) {
 			getOrUpdateSiblingScore(arc.first(), arc.second(), arc.third(), 1);
 		}
 		for (const auto & arc : negativeBiArcs) {
 			getOrUpdateSiblingScore(arc.first(), arc.second(), arc.third(), -1);
+		}
+		m_vecCorrectArcs = m_vecTrainArcs;
+		m_vecCorrectBiArcs = m_vecTrainBiArcs;
+		for (const auto & ec : vecBad) {
+			++m_nTrainingRound;
+			decodeArcs(ec);
+			// negative arcs
+			negativeArcs.clear();
+			negativeArcs.insert(m_vecTrainArcs.begin(), m_vecTrainArcs.end());
+			for (const auto & arc : m_vecCorrectArcs) {
+				negativeArcs.erase(arc);
+			}
+			for (const auto & arc : negativeArcs) {
+				if (positiveArcs.find(arc) == positiveArcs.end()) {
+					getOrUpdateSiblingScore(arc.first(), arc.second(), -1);
+				}
+			}
+			// negative bi arcs
+			negativeBiArcs.clear();
+			negativeBiArcs.insert(m_vecTrainBiArcs.begin(), m_vecTrainBiArcs.end());
+			for (const auto & arc : m_vecCorrectBiArcs) {
+				negativeBiArcs.erase(arc);
+			}
+			for (const auto & arc : negativeBiArcs) {
+				if (positiveBiArcs.find(arc) == positiveBiArcs.end()) {
+					getOrUpdateSiblingScore(arc.first(), arc.second(), arc.third(), -1);
+				}
+			}
 		}
 	}
 
@@ -950,10 +964,10 @@ namespace emptyeisner2nd {
 	}
 
 	tscore DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
-		return m_pWeight->getOrUpdateArcScore(p, c, amount, m_nSentenceLength, m_lSentence);
+		return m_pWeight->getOrUpdateArcScore(p, c, amount, m_nTrainingRound, m_nSentenceLength, m_lSentence);
 	}
 
 	tscore DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
-		return m_pWeight->getOrUpdateBiArcScore(p, c, c2, amount, m_nSentenceLength, m_lSentence);
+		return m_pWeight->getOrUpdateBiArcScore(p, c, c2, amount, m_nTrainingRound, m_nSentenceLength, m_lSentence);
 	}
 }

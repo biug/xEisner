@@ -32,8 +32,7 @@ Weightec2nd::Weightec2nd(const std::string & sRead, const std::string & sRecord,
 	m_mapC1wC2w("m_mapC1wC2w"),
 	m_mapC1wC2p("m_mapC1wC2p"),
 	m_mapC2wC1p("m_mapC2wC1p"),
-	m_nScoreIndex(nParserState),
-	m_nTrainingRound(0)
+	m_nScoreIndex(nParserState)
 {
 	loadScores();
 	std::cout << "load complete." << std::endl;
@@ -169,9 +168,7 @@ void Weightec2nd::init(const WordPOSTag & tkEmpty, const WordPOSTag & tkStart, c
 	m_tkEnd.refer(tkEnd.first(), tkEnd.second());
 }
 
-void Weightec2nd::referRound(const int & nRound) { m_nTrainingRound = nRound; }
-
-tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
+tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int & amount, int round, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
 
 	tscore retval = 0;
 
@@ -213,225 +210,225 @@ tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int 
 //	if (tag_c == 0) {
 
 		word_int.refer(p_word, 0);
-		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 		word_int.referLast(dis);
-		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 		word_int.referLast(dir);
-		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 
 		tag_int.refer(p_tag, 0);
-		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 		tag_int.referLast(dis);
-		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 		tag_int.referLast(dir);
-		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 
 		word_tag_int.refer(p_word, p_tag, 0);
-		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 		word_tag_int.referLast(dis);
-		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 		word_tag_int.referLast(dir);
-		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 
 		word_int.refer(c_word, 0);
-		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 		word_int.referLast(dis);
-		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 		word_int.referLast(dir);
-		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCw.getOrUpdateScore(retval, word_int, m_nScoreIndex, amount, round);
 
 		tag_int.refer(c_tag, 0);
-		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 		tag_int.referLast(dis);
-		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 		tag_int.referLast(dir);
-		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCp.getOrUpdateScore(retval, tag_int, m_nScoreIndex, amount, round);
 
 		word_tag_int.refer(c_word, c_tag, 0);
-		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 		word_tag_int.referLast(dis);
-		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 		word_tag_int.referLast(dir);
-		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapCwp.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 
 		tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, m_tkEmpty.second(), 0);
-		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dis);
-		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dir);
-		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, m_tkEmpty.second(), 0);
-		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dis);
-		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dir);
-		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 		tag_tag_tag_tag_int.refer(p_tag, p1_tag, m_tkEmpty.second(), c1_tag, 0);
-		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dis);
-		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dir);
-		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 		tag_tag_tag_tag_int.refer(p_1_tag, p_tag, m_tkEmpty.second(), c1_tag, 0);
-		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dis);
-		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_tag_int.referLast(dir);
-		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 //	}
 
 	word_word_tag_tag_int.refer(p_word, c_word, p_tag, c_tag, 0);
-	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_tag_int.referLast(dis);
-	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_tag_int.referLast(dir);
-	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCwp.getOrUpdateScore(retval, word_word_tag_tag_int, m_nScoreIndex, amount, round);
 
 	word_tag_tag_int.refer(p_word, p_tag, c_tag, 0);
-	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_tag_tag_int.referLast(dis);
-	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_tag_tag_int.referLast(dir);
-	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 
 	word_tag_tag_int.refer(c_word, p_tag, c_tag, 0);
-	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_tag_tag_int.referLast(dis);
-	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 	word_tag_tag_int.referLast(dir);
-	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCwp.getOrUpdateScore(retval, word_tag_tag_int, m_nScoreIndex, amount, round);
 
 	word_word_tag_int.refer(p_word, c_word, p_tag, 0);
-	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_int.referLast(dis);
-	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_int.referLast(dir);
-	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwpCw.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 
 	word_word_tag_int.refer(p_word, c_word, c_tag, 0);
-	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_int.referLast(dis);
-	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 	word_word_tag_int.referLast(dir);
-	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCwp.getOrUpdateScore(retval, word_word_tag_int, m_nScoreIndex, amount, round);
 
 	word_word_int.refer(p_word, c_word, 0);
-	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, round);
 	word_word_int.referLast(dis);
-	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, round);
 	word_word_int.referLast(dir);
-	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPwCw.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, round);
 
 	tag_tag_int.refer(p_tag, c_tag, 0);
-	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_int.referLast(dis);
-	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_int.referLast(dir);
-	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpCp.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_1_tag, c_tag, 0);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_1_tag, c_tag, 0);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, c1_tag, 0);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, c1_tag, 0);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(m_tkEmpty.second(), p1_tag, c_1_tag, c_tag, 0);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.refer(m_tkEmpty.second(), p1_tag, c_1_tag, c_tag, dir);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_1_tag, m_tkEmpty.second(), c_1_tag, c_tag, 0);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(m_tkEmpty.second(), p1_tag, c_tag, c1_tag, 0);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_1_tag, m_tkEmpty.second(), c_tag, c1_tag, 0);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_tag, m_tkEmpty.second(), c_1_tag, c_tag, 0);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1Cp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(m_tkEmpty.second(), p_tag, c_1_tag, c_tag, 0);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCp_1Cp.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_tag, p1_tag, c_tag, m_tkEmpty.second(), 0);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpPp1CpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_tag_int.refer(p_1_tag, p_tag, c_tag, m_tkEmpty.second(), 0);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dis);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_tag_int.referLast(dir);
-	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	// change here
 	for (int b = pos_c < p ? pos_c + 2 : p + 1, e = (int)std::fmax(p, pos_c); b < e; ++b) {
 		b_tag = sent[b][0].second();
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
-		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, dis);
-		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, round);
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, dir);
-		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, round);
 	}
 
 //	return tag_c == 0 ? retval : (retval * 2);
 	return retval;
 }
 
-tscore Weightec2nd::getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
+tscore Weightec2nd::getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & amount, int round, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
 
 	tscore retval = 0;
 
@@ -458,29 +455,29 @@ tscore Weightec2nd::getOrUpdateBiArcScore(const int & p, const int & c, const in
 	POSTagSet3Int tag_tag_tag_int;
 
 	tag_tag_int.refer(c_tag, c2_tag, 0);
-	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_int.referLast(dir);
-	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, round);
 
 	tag_tag_tag_int.refer(p_tag, c_tag, c2_tag, 0);
-	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, round);
 	tag_tag_tag_int.referLast(dir);
-	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, round);
 
 	word_word_int.refer(c_word, c2_word, 0);
-	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, round);
 	word_word_int.referLast(dir);
-	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, round);
 
 	word_tag_int.refer(c_word, c2_tag, 0);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 	word_tag_int.referLast(dir);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 
 	word_tag_int.refer(c2_word, c_tag, 0);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 	word_tag_int.referLast(dir);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, round);
 
 	return retval;
 }

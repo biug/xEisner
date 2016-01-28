@@ -36,7 +36,7 @@ namespace emptyeisner2nd {
 		std::unordered_set<BiGram<int>> m_setArcGoldScore;
 		std::unordered_set<TriGram<int>> m_setBiSiblingArcGoldScore;
 
-		void update();
+		void update(const std::vector<int> & vecBad);
 		void generate(DependencyTree * retval, const DependencyTree & correct);
 		void goldCheck(int nec);
 
