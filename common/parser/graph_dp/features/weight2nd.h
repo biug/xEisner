@@ -1,8 +1,8 @@
 #ifndef _WEIGHT2ND_H
 #define _WEIGHT2ND_H
 
-#include "macros_base.h"
-#include "common/parser/weight1st.h"
+#include "common/parser/macros_base.h"
+#include "common/parser/graph_dp/features/weight1st.h"
 #include "include/learning/perceptron/packed_score.h"
 
 class Weight2nd : public Weight1st {

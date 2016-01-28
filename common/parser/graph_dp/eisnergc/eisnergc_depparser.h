@@ -6,8 +6,8 @@
 
 #include "eisnergc_state.h"
 #include "common/parser/depparser_base.h"
-#include "common/parser/weight1st.h"
-#include "common/parser/weightgc.h"
+#include "common/parser/graph_dp/features/weight1st.h"
+#include "common/parser/graph_dp/features/weightgc.h"
 
 namespace eisnergc {
 	class DepParser : public DepParserBase {

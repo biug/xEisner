@@ -5,7 +5,7 @@
 #include <unordered_set>
 
 #include "eisner_state.h"
-#include "common/parser/weight1st.h"
+#include "common/parser/graph_dp/features/weight1st.h"
 #include "common/parser/depparser_base.h"
 
 namespace eisner {

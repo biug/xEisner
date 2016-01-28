@@ -6,10 +6,10 @@
 #include "include/learning/perceptron/packed_score.h"
 
 namespace emptyeisner2nd {
-#define OUTPUT_STEP 10
+#define OUTPUT_STEP 100
 
 #define MAX_EMPTY_SIZE	1
-#define MAX_EMPTY_COUNT	26
+#define MAX_EMPTY_COUNT	16
 
 #define MAX_ACTION_SIZE (9 + (MAX_EMPTY_SIZE << 1))
 

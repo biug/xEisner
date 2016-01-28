@@ -1,8 +1,8 @@
 #ifndef _WEIGHTGC_H
 #define _WEIGHTGC_H
 
-#include "macros_base.h"
-#include "common/parser/weight1st.h"
+#include "weight1st.h"
+#include "common/parser/macros_base.h"
 #include "include/learning/perceptron/packed_score.h"
 
 class Weightgc : public Weight1st {

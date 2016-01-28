@@ -6,7 +6,7 @@
 
 #include "emptyeisner2nd_state.h"
 #include "common/parser/depparser_base.h"
-#include "common/parser/weightec2nd.h"
+#include "common/parser/graph_dp/features/weightec2nd.h"
 
 namespace emptyeisner2nd {
 
@@ -30,9 +30,8 @@ namespace emptyeisner2nd {
 		int m_nRealEmpty;
 		int m_nSentenceCount;
 
-		tscore m_nRetval;
-		std::vector<std::vector<tscore>> m_vecArcScore;
-		std::vector<std::vector<std::vector<tscore>>> m_vecBiSiblingScore;
+		tscore m_lArcScore[MAX_SENTENCE_SIZE][2][MAX_EMPTY_SIZE + 1];
+		tscore m_lBiSiblingScore[MAX_SENTENCE_SIZE][2][MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1];
 
 		std::unordered_set<BiGram<int>> m_setArcGoldScore;
 		std::unordered_set<TriGram<int>> m_setBiSiblingArcGoldScore;
@@ -41,15 +40,16 @@ namespace emptyeisner2nd {
 		void generate(DependencyTree * retval, const DependencyTree & correct);
 		void goldCheck(int nec);
 
+		int encodeEmptyWord(int i, int ec);
 		void readEmptySentAndArcs(const DependencyTree & correct);
 
-		const tscore & arcScore(const int & p, const int & c);
-		const tscore & biSiblingArcScore(const int & p, const int & c, const int & c2);
-		void initArcScore();
-		void initBiSiblingArcScore();
+		tscore arcScore(const int & p, const int & c);
+		tscore biSiblingArcScore(const int & p, const int & c, const int & c2);
+		void initArcScore(const int & d);
+		void initBiSiblingArcScore(const int & d);
 
-		void getOrUpdateSiblingScore(const int & p, const int & c, const int & amount);
-		void getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
+		tscore getOrUpdateSiblingScore(const int & p, const int & c, const int & amount);
+		tscore getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
 
 	public:
 		DepParser(const std::string & sFeatureInput, const std::string & sFeatureOut, int nState);
@@ -57,6 +57,7 @@ namespace emptyeisner2nd {
 
 		void decode();
 		void decodeArcs(int nec);
+		void decodeSpan(int distance, int left, int right);
 
 		void train(const DependencyTree & correct, const int & round);
 		void parse(const Sentence & sentence, DependencyTree * retval);
