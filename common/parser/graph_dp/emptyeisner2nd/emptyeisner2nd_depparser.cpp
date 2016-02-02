@@ -188,11 +188,6 @@ namespace emptyeisner2nd {
 
 		switch (m_nState) {
 		case ParserState::TRAIN:
-			// update twice
-//			for (int ec = 0; ec <= m_nMaxEmpty; ++ec) {
-//				decodeArcs(ec);
-//				update();
-//			}
 			decodeArcs(m_nRealEmpty);
 			update(m_nRealEmpty);
 //			std::cout << "real empty node is " << m_nRealEmpty << " train empty node is " << maxEC << std::endl;
