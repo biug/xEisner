@@ -47,12 +47,13 @@ namespace emptyeisner2nd {
 		int encodeEmptyPOSTag(int i, int ec);
 		void readEmptySentAndArcs(const DependencyTree & correct);
 
-		tscore arcScore(const int & p, const int & c, const int & nec);
+		tscore baseArcScore(const int & p, const int & c, const int & nec);
 		tscore biSiblingArcScore(const int & p, const int & c, const int & c2);
 		void initArcScore(const int & d);
 		void initBiSiblingArcScore(const int & d);
 
-		tscore getOrUpdateArcScore(const int & p, const int & c, const int & nec, const int & amount);
+		tscore getOrUpdateInnerEmptyScore(const int & p, const int & c, const int & amount);
+		tscore getOrUpdateBaseArcScore(const int & p, const int & c, const int & amount);
 		tscore getOrUpdateBiSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
 
 	public:
