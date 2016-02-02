@@ -26,6 +26,8 @@ namespace emptyeisner2nd {
 		DepParser::start_taggedword.refer(TWord::code(START_WORD), TPOSTag::code(START_POSTAG));
 		DepParser::end_taggedword.refer(TWord::code(END_WORD), TPOSTag::code(END_POSTAG));
 
+		m_vecCorrectEmpty = {0, 0, 2, 3, 2, 2, 1, 0, 1, 0, 2, 4, 3, 2, 0, 1, 1, 2, 0, 2, 5, 0, 2, 0, 4, 0, 5, 5, 6, 3, 0, 1, 0, 1, 0, 0, 1, 5, 2, 2, 2, 1, 3, 2, 0, 2, 0, 4, 2, 2, 0, 3, 1, 0, 0, 2, 0, 2, 0, 2, 0, 5, 2, 0, 0, 0, 2, 0, 0, 3, 0, 3, 0, 2, 0, 0, 0, 5, 2, 0, 2, 2, 0, 2, 0, 0, 0, 0, 0, 0, 3, 6, 8, 0, 0, 2, 2, 1, 3, 0, 4, 0, 0, 0, 2, 4, 0, 0, 0, 0, 0, 4, 2, 0, 4, 2, 0, 0, 0, 0, 0, 6, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 2, 2, 0, 1, 0, 1, 4, 3, 2, 0, 3, 2, 1, 2, 0, 3, 0, 1, 5, 0, 0, 0, 2, 2, 4, 1, 0, 1, 3, 1, 4, 4, 4, 3, 4, 2, 2, 0, 0, 0, 0, 1, 0, 0, 2, 0, 3, 2, 2, 3, 0, 4, 4, 0, 0, 0, 4, 0, 1, 7, 2, 0, 1, 0, 2, 1, 2, 0, 0, 0, 4, 0, 5, 2, 2, 1, 0, 0, 0, 1, 0, 3, 3, 1, 2, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 2, 0, 0, 3, 0, 1, 0, 1, 1, 2, 1, 0, 0, 0, 0, 5, 0, 3, 0, 3, 0, 0, 0, 2, 0, 0, 1, 2, 2, 0, 0, 0, 0, 2, 0, 0, 1, 6, 6, 0, 4, 2, 0, 5, 3, 3, 2, 1, 2, 0, 0, 0, 0, 8, 0, 1, 2, 0, 0, 0, 0, 1, 0, 2, 1, 0, 0, 0, 5, 0, 1, 0, 2, 2, 1, 0, 0, 0, 0, 0, 5, 5, 3, 0, 1, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 0, 0, 3, 3, 3, 4, 0, 1, 3, 1, 0, 1, 2, 2, 3, 1, 0, 0, 0, 0, 0, 5, 4, 2, 1, 3, 0, 0, 1, 2, 2, 3, 0, 2, 0, 4, 2, 5, 2, 0, 1, 0, 0, 0, 0, 5, 5, 5, 1, 6, 0, 0, 1, 1, 5, 0, 0, 0, 2, 0, 1, 1, 3, 0, 1, 0, 2, 0, 3, 3, 0, 0, 0, 0, 1, 0, 4, 0, 4, 1, 1, 3, 1, 0, 4, 4, 0, 0, 0, 3, 4, 1, 5, 2, 0, 1, 0, 1, 0, 0, 2, 0, 0, 0, 5, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 1, 2, 0, 3, 0, 3, 0, 0, 5, 4, 3, 7, 0, 2, 0, 0, 2, 4, 3, 1, 0, 0, 0, 0, 0, 0, 1, 0, 4, 4, 5, 4, 6, 3, 0, 4, 1, 2, 1, 0, 0, 0, 1, 0, 3, 0, 1, 0, 3, 1, 0, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 2, 1, 2, 0};
+
 		m_pWeight->init(DepParser::empty_taggedword, DepParser::start_taggedword, DepParser::end_taggedword);
 	}
 
@@ -35,12 +37,22 @@ namespace emptyeisner2nd {
 
 	int DepParser::encodeEmptyWord(int i, int ec) {
 		ttoken token =
-			(i > 0 ? TWord::key(m_lSentence[i - 1][0].first()) : START_WORD) +
+			(i > 0 ? TPOSTag::key(m_lSentence[i - 1][0].second()) : START_WORD) +
 			TEmptyTag::key(ec) +
-			(i < m_nSentenceLength ? TWord::key(m_lSentence[i][0].first()) : END_WORD) +
+			(i < m_nSentenceLength ? TPOSTag::key(m_lSentence[i][0].second()) : END_WORD) +
 			// position information
-			std::to_string((i * 10) / m_nSentenceLength);
+			std::to_string(round((double)i / (double)m_nSentenceLength * 1000.0) / 1000.0);
 		return TWord::code(token);
+	}
+
+	int DepParser::encodeEmptyPOSTag(int i, int ec) {
+		ttoken token =
+//			(i > 0 ? TPOSTag::key(m_lSentence[i - 1][0].second()) : START_POSTAG) +
+			TEmptyTag::key(ec) +
+//			(i < m_nSentenceLength ? TWord::key(m_lSentence[i][0].second()) : END_POSTAG) +
+			// position information
+			std::to_string(round((double)i / (double)m_nSentenceLength * 1000.0) / 1000.0);
+		return TPOSTag::code(token);
 	}
 
 	void DepParser::readEmptySentAndArcs(const DependencyTree & correct) {
@@ -62,17 +74,36 @@ namespace emptyeisner2nd {
 		// refer empty node
 		for (int i = 0; i <= m_nSentenceLength; ++i) {
 			for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
-				m_lSentence[i][ec].refer(encodeEmptyWord(i, ec), TPOSTag::code(TEmptyTag::key(ec)));
+				m_lSentence[i][ec].refer(encodeEmptyWord(i, ec), encodeEmptyPOSTag(i, ec));
 			}
 		}
 		int idx = 0;
 		for (const auto & node : tcorrect) {
 			if (TREENODE_POSTAG(node) == EMPTYTAG) {
 				++m_nRealEmpty;
-				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), ENCODE_EMPTY(idx, TEmptyTag::code(TREENODE_WORD(node)))));
+
+				int nec = 0;
+				Arc arc(TREENODE_HEAD(node), ENCODE_EMPTY(idx, TEmptyTag::code(TREENODE_WORD(node))));
+				ECArc ecarc(arc.first(), arc.second(), 0);
+				int l = std::min(arc.first(), arc.second()) + 1, r = std::max(arc.first(), arc.second()) - 1;
+				for (int i = l; i <= r; ++i) if (TREENODE_POSTAG(tcorrect[i]) == EMPTYTAG) ++nec;
+				ecarc.referLast(nec);
+
+				m_vecCorrectArcs.push_back(arc);
+				m_vecCorrectECArcs.push_back(ecarc);
+
 			}
 			else {
-				m_vecCorrectArcs.push_back(Arc(TREENODE_HEAD(node), idx++));
+				int nec = 0;
+				Arc arc(TREENODE_HEAD(node), idx++);
+				ECArc ecarc(arc.first(), arc.second(), 0);
+				int l = std::min(arc.first(), arc.second()) + 1, r = std::max(arc.first(), arc.second()) - 1;
+				if (arc.first() == -1) l = arc.second() + 1, r = m_nSentenceLength - 1;
+				for (int i = l; i <= r; ++i) if (TREENODE_POSTAG(tcorrect[i]) == EMPTYTAG) ++nec;
+				ecarc.referLast(nec);
+
+				m_vecCorrectArcs.push_back(arc);
+				m_vecCorrectECArcs.push_back(ecarc);
 			}
 		}
 	}
@@ -80,11 +111,14 @@ namespace emptyeisner2nd {
 	void DepParser::train(const DependencyTree & correct, const int & round) {
 		// initialize
 		m_vecCorrectArcs.clear();
+		m_vecCorrectECArcs.clear();
 		m_nSentenceLength = 0;
 		m_nRealEmpty = 0;
 		m_nSentenceCount = round;
 
+		std::cout << "read empty start" << std::endl;
 		readEmptySentAndArcs(correct);
+		std::cout << "read empty complete" << std::endl;
 
 		Arcs2BiArcs(m_vecCorrectArcs, m_vecCorrectBiArcs);
 
@@ -96,9 +130,12 @@ namespace emptyeisner2nd {
 		if (m_nState == ParserState::GOLDTEST) {
 			m_setArcGoldScore.clear();
 			m_setBiSiblingArcGoldScore.clear();
+			for (const auto & ecarc : m_vecCorrectECArcs) {
+				m_setArcGoldScore.insert(ECArc(ecarc.first() == -1 ? m_nSentenceLength : ecarc.first(), ecarc.second(), ecarc.third()));
+//				std::cout << "from " << ecarc.first() << " to " << ecarc.second() << " with " << ecarc.third() << " empty" << std::endl;
+			}
 			for (const auto & biarc : m_vecCorrectBiArcs) {
-				m_setArcGoldScore.insert(BiGram<int>(biarc.first(), biarc.third()));
-				m_setBiSiblingArcGoldScore.insert(TriGram<int>(biarc.first(), biarc.second(), biarc.third()));
+				m_setBiSiblingArcGoldScore.insert(BiArc(biarc.first(), biarc.second(), biarc.third()));
 			}
 		}
 
@@ -112,7 +149,7 @@ namespace emptyeisner2nd {
 	void DepParser::parse(const Sentence & sentence, DependencyTree * retval) {
 		int idx = 0;
 		m_nRealEmpty = 0;
-		m_nTrainingRound = 0;
+		++m_nTrainingRound;
 		DependencyTree correct;
 		m_nSentenceLength = sentence.size();
 
@@ -128,7 +165,7 @@ namespace emptyeisner2nd {
 		m_lSentence[idx][0].refer(TWord::code(ROOT_WORD), TPOSTag::code(ROOT_POSTAG));		// refer empty node
 		for (int i = 0; i <= idx; ++i) {
 			for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
-				m_lSentence[i][ec].refer(encodeEmptyWord(i, ec), TPOSTag::code(TEmptyTag::key(ec)));
+				m_lSentence[i][ec].refer(encodeEmptyWord(i, ec), encodeEmptyPOSTag(i, ec));
 			}
 		}
 		work(retval, correct);
@@ -157,15 +194,17 @@ namespace emptyeisner2nd {
 //				update();
 //			}
 			decodeArcs(m_nRealEmpty);
-			update();
+			update(m_nRealEmpty);
 //			std::cout << "real empty node is " << m_nRealEmpty << " train empty node is " << maxEC << std::endl;
 			break;
 		case ParserState::PARSE:
-			decodeArcs(maxEC);
+			decodeArcs(m_vecCorrectEmpty[m_nTrainingRound - 1]);
 			generate(retval, correct);
 			break;
 		case ParserState::GOLDTEST:
+			++m_nTrainingRound;
 			decodeArcs(m_nRealEmpty);
+			std::cout << "decode arcs end" << std::endl;
 			goldCheck(m_nRealEmpty);
 			break;
 		default:
@@ -174,17 +213,21 @@ namespace emptyeisner2nd {
 	}
 
 	void DepParser::initArcScore(const int & d) {
+		for (int nec = 0; nec <= m_nMaxEmpty; ++nec) {
 			for (int i = 0, max_i = m_nSentenceLength - d + 1; i < max_i; ++i) {
 				if (d > 1) {
-					m_lArcScore[i][0][0] = arcScore(i, i + d - 1);
-					m_lArcScore[i][1][0] = arcScore(i + d - 1, i);
+					m_lArcScore[i][0][0][nec] = arcScore(i, i + d - 1, nec);
+					m_lArcScore[i][1][0][nec] = arcScore(i + d - 1, i, nec);
 				}
 				for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
-					m_lArcScore[i][0][ec] = arcScore(i, ENCODE_EMPTY(i + d, ec));
-					m_lArcScore[i][1][ec] = arcScore(i + d - 1, ENCODE_EMPTY(i, ec));
+					m_lArcScore[i][0][ec][nec] = arcScore(i, ENCODE_EMPTY(i + d, ec), nec);
+					m_lArcScore[i][1][ec][nec] = arcScore(i + d - 1, ENCODE_EMPTY(i, ec), nec);
 				}
 			}
-			m_lArcScore[m_nSentenceLength - d + 1][1][0] = arcScore(m_nSentenceLength, m_nSentenceLength - d + 1);
+			if (d > 1) {
+				m_lArcScore[m_nSentenceLength - d + 1][1][0][nec] = arcScore(m_nSentenceLength, m_nSentenceLength - d + 1, nec);
+			}
+		}
 	}
 
 	void DepParser::initBiSiblingArcScore(const int & d) {
@@ -234,8 +277,8 @@ namespace emptyeisner2nd {
 
 			int r = l + distance - 1;
 			StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
-			const tscore (&l2r_arc_scores)[MAX_EMPTY_SIZE + 1] = m_lArcScore[l][0];
-			const tscore (&r2l_arc_scores)[MAX_EMPTY_SIZE + 1] = m_lArcScore[l][1];
+			const tscore (&l2r_arc_scores_list)[MAX_EMPTY_SIZE + 1][MAX_EMPTY_COUNT] = m_lArcScore[l][0];
+			const tscore (&r2l_arc_scores_list)[MAX_EMPTY_SIZE + 1][MAX_EMPTY_COUNT] = m_lArcScore[l][1];
 			const tscore (&l2r_bi_arc_scores_list)[MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1] = m_lBiSiblingScore[l][0];
 			const tscore (&r2l_bi_arc_scores_list)[MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1] = m_lBiSiblingScore[l][1];
 
@@ -268,7 +311,7 @@ namespace emptyeisner2nd {
 						// l2r_empty_inside
 						// split point would be encode as an empty point
 						if (litem.states[L2R_EMPTY_OUTSIDE].split != -1 && ritem.states[R2L].split != -1) {
-							tscore l_empty_inside_base_score = l2r_arc_scores[0] + ritem.states[R2L].score;
+							tscore l_empty_inside_base_score = l2r_arc_scores_list[0][lnec + rnec] + ritem.states[R2L].score;
 							for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
 								item.updateStates(
 										// bi-sibling arc score
@@ -284,7 +327,7 @@ namespace emptyeisner2nd {
 						// r2l_empty_inside
 						// split point would be encode as an empty point
 						if (litem.states[L2R].split != -1 && ritem.states[R2L_EMPTY_OUTSIDE].split != -1) {
-							tscore r_empty_inside_base_score = r2l_arc_scores[0] + litem.states[L2R].score;
+							tscore r_empty_inside_base_score = r2l_arc_scores_list[0][lnec + rnec] + litem.states[L2R].score;
 							for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
 								item.updateStates(
 										// bi-sibling arc score
@@ -312,9 +355,6 @@ namespace emptyeisner2nd {
 				const tscore (&l2r_bi_arc_scores)[MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1] = l2r_bi_arc_scores_list[s];
 				const tscore (&r2l_bi_arc_scores)[MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1] = r2l_bi_arc_scores_list[s];
 
-				tscore l2r_solid_arc_score = l2r_bi_arc_scores[0][0] + l2r_arc_scores[0];
-				tscore r2l_solid_arc_score = r2l_bi_arc_scores[0][0] + r2l_arc_scores[0];
-
 				while (lnec <= m_nMaxEmpty) {
 					int rnec = 0;
 					StateItem & litem = litems[lnec];
@@ -329,8 +369,10 @@ namespace emptyeisner2nd {
 								solidItem.updateStates(
 										// left part + right part
 										litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[JUX].score +
-										// bi-sibling arc score + arc score
-										l2r_solid_arc_score,
+										// arc score
+										l2r_arc_scores_list[0][lnec + rnec] +
+										// bi-sibling arc score
+										l2r_bi_arc_scores[0][0],
 										s, lnec, L2R_SOLID_BOTH);
 							}
 							if (ritem.states[L2R].split != -1) {
@@ -348,8 +390,10 @@ namespace emptyeisner2nd {
 								solidItem.updateStates(
 										// left part + right part
 										litem.states[JUX].score + ritem.states[R2L_SOLID_OUTSIDE].score +
-										// bi-sibling arc score + arc score
-										r2l_solid_arc_score,
+										//arc score
+										r2l_arc_scores_list[0][lnec + rnec] +
+										// bi-sibling arc score
+										r2l_bi_arc_scores[0][0],
 										s, lnec, R2L_SOLID_BOTH);
 							}
 							if (litem.states[R2L].split != -1) {
@@ -371,7 +415,7 @@ namespace emptyeisner2nd {
 											// bi-sibling arc score
 											l2r_bi_arc_scores[0][ec] +
 											// arc score
-											l2r_arc_scores[ec] +
+											l2r_arc_scores_list[ec][lnec + rnec] +
 											// left part + right part
 											base_score,
 											s, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
@@ -386,7 +430,7 @@ namespace emptyeisner2nd {
 											// bi-sibling arc score
 											r2l_bi_arc_scores[0][ec] +
 											// arc score
-											r2l_arc_scores[ec] +
+											r2l_arc_scores_list[ec][lnec + rnec] +
 											// left part + right part
 											base_score,
 											s, lnec, R2L_EMPTY_OUTSIDE + ec - 1);
@@ -407,28 +451,30 @@ namespace emptyeisner2nd {
 				const tscore (&r2l_bi_arc_scores)[MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1] = r2l_bi_arc_scores_list[l];
 
 				int rnec = 0;
-				tscore l2r_solid_both_base_score = l2r_bi_arc_scores[0][0] + l2r_arc_scores[0];
 				while (rnec <= m_nMaxEmpty && ritems[rnec].states[R2L].split != -1) {
 					// l2r_solid_both
 					items[rnec].updateStates(
 							// right part score
 							ritems[rnec].states[R2L].score +
-							// bi-sibling arc score + arc score
-							l2r_solid_both_base_score,
+							// arc score
+							l2r_arc_scores_list[0][rnec] +
+							// bi-sibling arc score
+							l2r_bi_arc_scores[0][0],
 							// left part is a point, 0 ec
 							l, 0, L2R_SOLID_BOTH);
 					++rnec;
 				}
 
 				int lnec = 0;
-				tscore r2l_solid_both_base_score = r2l_bi_arc_scores[0][0] + r2l_arc_scores[0];
 				while (lnec <= m_nMaxEmpty && litems[lnec].states[L2R].split != -1) {
 					// r2l_solid_both
 					items[lnec].updateStates(
 							// left part score
 							litems[lnec].states[L2R].score +
-							// bi-sibling arc score + arc score
-							r2l_solid_both_base_score,
+							// arc score
+							r2l_arc_scores_list[0][lnec] +
+							// bi-sibling arc score
+							r2l_bi_arc_scores[0][0],
 							// left part is L2R, lnec ec
 							r, lnec, R2L_SOLID_BOTH);
 					++lnec;
@@ -498,10 +544,10 @@ namespace emptyeisner2nd {
 									emptyItem.updateStates(
 											// left part + right part
 											litem.states[L2R_SOLID_OUTSIDE].score + ritem.states[L2R].score +
-											// bi-sibling arc score
-											l2r_bi_arc_scores[0][ec] +
 											// arc score
-											l2r_arc_scores[ec],
+											l2r_arc_scores_list[ec][lnec + rnec] +
+											// bi-sibling arc score
+											l2r_bi_arc_scores[0][ec],
 											r, lnec, L2R_EMPTY_OUTSIDE + ec - 1);
 								}
 							}
@@ -545,10 +591,10 @@ namespace emptyeisner2nd {
 								emptyItem.updateStates(
 										// left part + right part
 										ritem.states[R2L_SOLID_OUTSIDE].score + litem.states[R2L].score +
-										// bi-sibling arc score
-										r2l_bi_arc_scores[0][ec] +
 										// arc score
-										r2l_arc_scores[ec],
+										r2l_arc_scores_list[ec][rnec + lnec] +
+										// bi-sibling arc score
+										r2l_bi_arc_scores[0][ec],
 										l, lnec, R2L_EMPTY_OUTSIDE + ec - 1);
 							}
 							StateItem & item = items[rnec + lnec];
@@ -582,7 +628,7 @@ namespace emptyeisner2nd {
 					// l2r_empty_ouside
 					items[1].updateStates(
 							l2r_bi_arc_scores_list[l][0][ec] +
-							l2r_arc_scores[ec],
+							l2r_arc_scores_list[ec][0],
 							r, 1, L2R_EMPTY_OUTSIDE + ec - 1);
 					// l2r with 1 empty node
 					items[1].updateStates(
@@ -596,7 +642,7 @@ namespace emptyeisner2nd {
 					// r2l_empty_ouside
 					items[1].updateStates(
 							r2l_bi_arc_scores_list[l][0][ec] +
-							r2l_arc_scores[ec],
+							r2l_arc_scores_list[ec][0],
 							l, 0, R2L_EMPTY_OUTSIDE + ec - 1);
 					// r2l with 1 empty node
 					items[1].updateStates(
@@ -611,7 +657,11 @@ namespace emptyeisner2nd {
 
 	void DepParser::decode() {
 
+		std::cout << "decode start" << std::endl;
+
 		for (int d = 1; d <= m_nSentenceLength + 1; ++d) {
+
+			std::cout << "d = " << d << std::endl;
 
 			initArcScore(d);
 			initBiSiblingArcScore(d);
@@ -625,13 +675,13 @@ namespace emptyeisner2nd {
 				StateItem (&items)[MAX_EMPTY_COUNT] = m_lItems[l][r];
 				// initialize
 				for (int nec = 0; nec <= m_nMaxEmpty; ++nec) items[nec].init(l, r);
-				// r2l_solid_outside
 				int lnec = 0, rnec = 0;
 				while (lnec <= m_nMaxEmpty && l2ritems[lnec].states[L2R].split != -1) {
+					// r2l_solid_outside
 					items[lnec].updateStates(
 							l2ritems[lnec].states[L2R].score +
 							m_lBiSiblingScore[l][l][1][0][0] +
-							m_lArcScore[l][1][0],
+							m_lArcScore[l][1][0][lnec],
 							r, lnec, R2L_SOLID_OUTSIDE);
 					++lnec;
 				}
@@ -654,11 +704,14 @@ namespace emptyeisner2nd {
 				}
 			}
 		}
+		std::cout << "decode end" << std::endl;
 	}
 
 	void DepParser::decodeArcs(int nec) {
 
 		m_vecTrainArcs.clear();
+		m_vecTrainECArcs.clear();
+
 		if (m_lItems[0][m_nSentenceLength][nec].states[R2L].split == -1) return;
 		typedef std::tuple<int, int, int> sItem;
 		std::stack<sItem> stack;
@@ -672,8 +725,8 @@ namespace emptyeisner2nd {
 			int split = item.states[item.type].split;
 			int tnec = std::get<2>(span), lnec = item.states[item.type].lecnum;
 
-			//std::cout << "total tecnum is " << tnec << std::endl;
-			//item.print(); //debug
+//			std::cout << "total tecnum is " << tnec << std::endl;
+//			item.print(); //debug
 
 			switch (item.type) {
 			case JUX:
@@ -716,7 +769,8 @@ namespace emptyeisner2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
+				m_vecTrainArcs.push_back(Arc(item.left, item.right));
+				m_vecTrainECArcs.push_back(ECArc(item.left, item.right, tnec));
 
 				if (split == item.left) {
 					m_lItems[item.left + 1][item.right][tnec - lnec].type = R2L;
@@ -733,7 +787,8 @@ namespace emptyeisner2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				m_vecTrainArcs.push_back(BiGram<int>(item.right == m_nSentenceLength ? -1 : item.right, item.left));
+				m_vecTrainArcs.push_back(Arc(item.right == m_nSentenceLength ? -1 : item.right, item.left));
+				m_vecTrainECArcs.push_back(ECArc(item.right == m_nSentenceLength ? -1 : item.right, item.left, tnec));
 
 				if (split == item.right) {
 					m_lItems[item.left][item.right - 1][lnec].type = L2R;
@@ -750,7 +805,8 @@ namespace emptyeisner2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				m_vecTrainArcs.push_back(BiGram<int>(item.left, item.right));
+				m_vecTrainArcs.push_back(Arc(item.left, item.right));
+				m_vecTrainECArcs.push_back(ECArc(item.left, item.right, tnec));
 
 				m_lItems[item.left][DECODE_EMPTY_POS(split)][lnec].type = L2R_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
 				stack.push(sItem(item.left, DECODE_EMPTY_POS(split), lnec));
@@ -761,7 +817,8 @@ namespace emptyeisner2nd {
 				if (item.left == item.right) {
 					break;
 				}
-				m_vecTrainArcs.push_back(BiGram<int>(item.right, item.left));
+				m_vecTrainArcs.push_back(Arc(item.right, item.left));
+				m_vecTrainECArcs.push_back(ECArc(item.right, item.left, tnec));
 
 				m_lItems[DECODE_EMPTY_POS(split) + 1][item.right][tnec - lnec].type = R2L_EMPTY_OUTSIDE + DECODE_EMPTY_TAG(split) - 1;
 				stack.push(sItem(DECODE_EMPTY_POS(split) + 1, item.right, tnec - lnec));
@@ -781,7 +838,8 @@ namespace emptyeisner2nd {
 					break;
 				}
 				if (item.right == m_nSentenceLength) {
-					m_vecTrainArcs.push_back(BiGram<int>(-1, item.left));
+					m_vecTrainArcs.push_back(Arc(-1, item.left));
+					m_vecTrainECArcs.push_back(ECArc(-1, item.left, tnec));
 					m_lItems[item.left][item.right - 1][lnec].type = L2R;
 					stack.push(sItem(item.left, item.right - 1, lnec));
 					break;
@@ -791,7 +849,8 @@ namespace emptyeisner2nd {
 				stack.push(span);
 				break;
 			case L2R_EMPTY_OUTSIDE + 0:
-				m_vecTrainArcs.push_back(BiGram<int>(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1)));
+				m_vecTrainArcs.push_back(Arc(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1)));
+				m_vecTrainECArcs.push_back(ECArc(item.left, ENCODE_EMPTY(item.right + 1, item.type - L2R_EMPTY_OUTSIDE + 1), tnec - 1));
 
 				if (item.left == item.right) {
 					break;
@@ -803,7 +862,8 @@ namespace emptyeisner2nd {
 				stack.push(sItem(split, item.right, tnec - lnec - 1));
 				break;
 			case R2L_EMPTY_OUTSIDE + 0:
-				m_vecTrainArcs.push_back(BiGram<int>(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1)));
+				m_vecTrainArcs.push_back(Arc(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1)));
+				m_vecTrainECArcs.push_back(ECArc(item.right, ENCODE_EMPTY(item.left, item.type - R2L_EMPTY_OUTSIDE + 1), tnec - 1));
 
 				if (item.left == item.right) {
 					break;
@@ -820,24 +880,24 @@ namespace emptyeisner2nd {
 		}
 	}
 
-	void DepParser::update() {
+	void DepParser::update(const int & nec) {
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 
-		std::unordered_set<Arc> positiveArcs;
-		positiveArcs.insert(m_vecCorrectArcs.begin(), m_vecCorrectArcs.end());
-		for (const auto & arc : m_vecTrainArcs) {
+		std::unordered_set<ECArc> positiveArcs;
+		positiveArcs.insert(m_vecCorrectECArcs.begin(), m_vecCorrectECArcs.end());
+		for (const auto & arc : m_vecTrainECArcs) {
 			positiveArcs.erase(arc);
 		}
-		std::unordered_set<Arc> negativeArcs;
-		negativeArcs.insert(m_vecTrainArcs.begin(), m_vecTrainArcs.end());
-		for (const auto & arc : m_vecCorrectArcs) {
+		std::unordered_set<ECArc> negativeArcs;
+		negativeArcs.insert(m_vecTrainECArcs.begin(), m_vecTrainECArcs.end());
+		for (const auto & arc : m_vecCorrectECArcs) {
 			negativeArcs.erase(arc);
 		}
 		for (const auto & arc : positiveArcs) {
-			getOrUpdateSiblingScore(arc.first(), arc.second(), 1);
+			getOrUpdateArcScore(arc.first(), arc.second(), arc.third(), 1);
 		}
 		for (const auto & arc : negativeArcs) {
-			getOrUpdateSiblingScore(arc.first(), arc.second(), -1);
+			getOrUpdateArcScore(arc.first(), arc.second(), arc.third(), -1);
 		}
 
 		std::unordered_set<BiArc> positiveBiArcs;
@@ -863,10 +923,10 @@ namespace emptyeisner2nd {
 		}
 		++m_nTrainingRound;
 		for (const auto & arc : positiveBiArcs) {
-			getOrUpdateSiblingScore(arc.first(), arc.second(), arc.third(), 1);
+			getOrUpdateBiSiblingScore(arc.first(), arc.second(), arc.third(), 1);
 		}
 		for (const auto & arc : negativeBiArcs) {
-			getOrUpdateSiblingScore(arc.first(), arc.second(), arc.third(), -1);
+			getOrUpdateBiSiblingScore(arc.first(), arc.second(), arc.third(), -1);
 		}
 	}
 
@@ -909,6 +969,9 @@ namespace emptyeisner2nd {
 
 	void DepParser::goldCheck(int nec) {
 		if (m_nRealEmpty != nec) return;
+//		for (const auto & ecarc : m_vecTrainECArcs) {
+//			std::cout << "from " << ecarc.first() << " to " << ecarc.second() << " with " << ecarc.third() << " empty" << std::endl;
+//		}
 		Arcs2BiArcs(m_vecTrainArcs, m_vecTrainBiArcs);
 		if (m_vecCorrectArcs.size() != m_vecTrainArcs.size() || m_lItems[0][m_nSentenceLength][nec].states[R2L].score / GOLD_POS_SCORE != m_vecCorrectArcs.size() + m_vecCorrectBiArcs.size()) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
@@ -935,25 +998,25 @@ namespace emptyeisner2nd {
 		}
 	}
 
-	tscore DepParser::arcScore(const int & p, const int & c) {
+	tscore DepParser::arcScore(const int & p, const int & c, const int & nec) {
 		if (m_nState == ParserState::GOLDTEST) {
-			return m_setArcGoldScore.find(BiGram<int>(p, c)) == m_setArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
+			return m_setArcGoldScore.find(ECArc(p, c, nec)) == m_setArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
 		}
-		return getOrUpdateSiblingScore(p, c, 0);
+		return getOrUpdateArcScore(p, c, nec, 0);
 	}
 
 	tscore DepParser::biSiblingArcScore(const int & p, const int & c, const int & c2) {
 		if (m_nState == ParserState::GOLDTEST) {
-			return m_setBiSiblingArcGoldScore.find(TriGram<int>(p, c, c2)) == m_setBiSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
+			return m_setBiSiblingArcGoldScore.find(BiArc(p, c, c2)) == m_setBiSiblingArcGoldScore.end() ? GOLD_NEG_SCORE : GOLD_POS_SCORE;
 		}
-		return getOrUpdateSiblingScore(p, c, c2, 0);
+		return getOrUpdateBiSiblingScore(p, c, c2, 0);
 	}
 
-	tscore DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & amount) {
-		return m_pWeight->getOrUpdateArcScore(p, c, amount, m_nSentenceLength, m_lSentence);
+	tscore DepParser::getOrUpdateArcScore(const int & p, const int & c, const int & nec, const int & amount) {
+		return m_pWeight->getOrUpdateArcScore(p, c, nec, amount, m_nSentenceLength, m_lSentence);
 	}
 
-	tscore DepParser::getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
+	tscore DepParser::getOrUpdateBiSiblingScore(const int & p, const int & c, const int & c2, const int & amount) {
 		return m_pWeight->getOrUpdateBiArcScore(p, c, c2, amount, m_nSentenceLength, m_lSentence);
 	}
 }

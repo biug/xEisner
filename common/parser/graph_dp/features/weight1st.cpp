@@ -150,7 +150,7 @@ void Weight1st::getOrUpdateArcScore(tscore & retval, const int & p, const int & 
 	if (p > c) {
 		int l = c, r = p;
 		dis = 0;
-		while (l <= r) if (TPOSTag::key(sent[l++].second())[0] != '*') ++dis;
+		while (l <= r) if (TWord::key(sent[l++].first())[0] != '*') ++dis;
 		--dis;
 		if (dis == 0) dis = 1;
 		else if (dis > 10) dis = 6;
@@ -159,7 +159,7 @@ void Weight1st::getOrUpdateArcScore(tscore & retval, const int & p, const int & 
 	else {
 		int l = p, r = c;
 		dis = 0;
-		while (l <= r) if (TPOSTag::key(sent[l++].second())[0] != '*') --dis;
+		while (l <= r) if (TWord::key(sent[l++].first())[0] != '*') --dis;
 		++dis;
 		if (dis == 0) dis = -1;
 		else if (dis < -10) dis = -6;
@@ -170,10 +170,10 @@ void Weight1st::getOrUpdateArcScore(tscore & retval, const int & p, const int & 
 	POSTag p_tag(sent[p].second()), c_tag(sent[c].second());
 
 	int pp = p - 1, np = p + 1, pc = c - 1, nc = c + 1;
-	while (pp >= 0 && TPOSTag::key(sent[pp].second())[0] == '*') --pp;
-	while (np < sentLen && TPOSTag::key(sent[np].second())[0] == '*') ++np;
-	while (pc >= 0 && TPOSTag::key(sent[pc].second())[0] == '*') --pc;
-	while (nc < sentLen && TPOSTag::key(sent[nc].second())[0] == '*') ++nc;
+	while (pp >= 0 && TWord::key(sent[pp].first())[0] == '*') --pp;
+	while (np < sentLen && TWord::key(sent[np].first())[0] == '*') ++np;
+	while (pc >= 0 && TWord::key(sent[pc].first())[0] == '*') --pc;
+	while (nc < sentLen && TWord::key(sent[nc].first())[0] == '*') ++nc;
 
 	POSTag p_1_tag(pp >= 0 ? sent[pp].second() : m_tkStart.second()),
 			p1_tag(np < sentLen ? sent[np].second() : m_tkEnd.second()),
@@ -400,6 +400,7 @@ void Weight1st::getOrUpdateArcScore(tscore & retval, const int & p, const int & 
 	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	for (int b = (int)std::fmin(p, c) + 1, e = (int)std::fmax(p, c); b < e; ++b) {
+		if (TWord::key(sent[b].first())[0] == '*') continue;
 		b_tag = sent[b].second();
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
 		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);

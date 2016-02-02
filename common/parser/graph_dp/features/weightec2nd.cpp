@@ -171,7 +171,7 @@ void Weightec2nd::init(const WordPOSTag & tkEmpty, const WordPOSTag & tkStart, c
 
 void Weightec2nd::referRound(const int & nRound) { m_nTrainingRound = nRound; }
 
-tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
+tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int & nec, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]) {
 
 	tscore retval = 0;
 
@@ -180,8 +180,10 @@ tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int 
 	int tag_c = DECODE_EMPTY_TAG(c);
 	int pc = IS_EMPTY(c) ? (pos_c > p ? pos_c : pos_c - 1) : c;
 
-	int dis = encodeLinkDistanceOrDirection(p, pc, false);
+	int dis = tag_c == 0 ? encodeLinkDistanceOrDirection(p, pc, false) : encodeEmptyDistance(p, pc);
 	int dir = encodeLinkDistanceOrDirection(p, pc, true);
+
+//	if (dis == 0 || dir == 0) std::cout << "p = " << p << " c = " << c << " fuck you" << std::endl;
 
 	Word p_word(sent[p][0].first()), c_word(sent[pos_c][tag_c].first());
 	POSTag p_tag(sent[p][0].second()), c_tag(sent[pos_c][tag_c].second());
@@ -416,8 +418,8 @@ tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int 
 	tag_tag_tag_tag_int.referLast(dir);
 	m_mapPp_1PpCpCp1.getOrUpdateScore(retval, tag_tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
-	// change here
-	for (int b = pos_c < p ? pos_c + 2 : p + 1, e = (int)std::fmax(p, pos_c); b < e; ++b) {
+	// inner normal
+	for (int b = (pos_c <= p ? (tag_c == 0 ? pos_c + 1 : pos_c) : (p + 1)), e = std::max(p, pos_c); b < e; ++b) {
 		b_tag = sent[b][0].second();
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
 		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
@@ -426,8 +428,17 @@ tscore Weightec2nd::getOrUpdateArcScore(const int & p, const int & c, const int 
 		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, dir);
 		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	}
+	// inner empty
+	for (int i = 0; i < nec; ++i) {
+		b_tag = TPOSTag::code("*PRO*");
+		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, 0);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, dis);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+		tag_tag_tag_int.refer(p_tag, b_tag, c_tag, dir);
+		m_mapPpBpCp.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	}
 
-//	return tag_c == 0 ? retval : (retval * 2);
 	return retval;
 }
 

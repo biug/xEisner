@@ -23,33 +23,37 @@ namespace emptyeisner2nd {
 		WordPOSTag m_lSentenceWithEmpty[MAX_SENTENCE_SIZE];
 		std::vector<Arc> m_vecCorrectArcs;
 		std::vector<BiArc> m_vecCorrectBiArcs;
+		std::vector<ECArc> m_vecCorrectECArcs;
 		std::vector<Arc> m_vecTrainArcs;
 		std::vector<BiArc> m_vecTrainBiArcs;
+		std::vector<ECArc> m_vecTrainECArcs;
+		std::vector<int> m_vecCorrectEmpty;
 		int m_nSentenceLength;
 		int m_nMaxEmpty;
 		int m_nRealEmpty;
 		int m_nSentenceCount;
 
-		tscore m_lArcScore[MAX_SENTENCE_SIZE][2][MAX_EMPTY_SIZE + 1];
+		tscore m_lArcScore[MAX_SENTENCE_SIZE][2][MAX_EMPTY_SIZE + 1][MAX_EMPTY_COUNT];
 		tscore m_lBiSiblingScore[MAX_SENTENCE_SIZE][2][MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1];
 
-		std::unordered_set<BiGram<int>> m_setArcGoldScore;
-		std::unordered_set<TriGram<int>> m_setBiSiblingArcGoldScore;
+		std::unordered_set<ECArc> m_setArcGoldScore;
+		std::unordered_set<BiArc> m_setBiSiblingArcGoldScore;
 
-		void update();
+		void update(const int & nec);
 		void generate(DependencyTree * retval, const DependencyTree & correct);
 		void goldCheck(int nec);
 
 		int encodeEmptyWord(int i, int ec);
+		int encodeEmptyPOSTag(int i, int ec);
 		void readEmptySentAndArcs(const DependencyTree & correct);
 
-		tscore arcScore(const int & p, const int & c);
+		tscore arcScore(const int & p, const int & c, const int & nec);
 		tscore biSiblingArcScore(const int & p, const int & c, const int & c2);
 		void initArcScore(const int & d);
 		void initBiSiblingArcScore(const int & d);
 
-		tscore getOrUpdateSiblingScore(const int & p, const int & c, const int & amount);
-		tscore getOrUpdateSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
+		tscore getOrUpdateArcScore(const int & p, const int & c, const int & nec, const int & amount);
+		tscore getOrUpdateBiSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
 
 	public:
 		DepParser(const std::string & sFeatureInput, const std::string & sFeatureOut, int nState);

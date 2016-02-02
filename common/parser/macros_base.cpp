@@ -19,6 +19,12 @@ int encodeLinkDistance(const int & st, const int & n0) {
 	return diff;
 }
 
+int encodeEmptyDistance(const int & hi, const int & di) {
+	int diff = hi - di;
+	if (diff < 0) return diff < -1 ? -2 : -1;
+	return diff > 10 ? 11 : diff;
+}
+
 int encodeLinkDistanceOrDirection(const int & hi, const int & di, bool dir) {
 	int diff = hi - di;
 	if (dir) {

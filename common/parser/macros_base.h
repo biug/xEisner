@@ -124,6 +124,7 @@ typedef std::vector<DependencyTaggedTreeNode> DependencyTaggedTree;
 typedef std::unordered_map<int, std::vector<int>> SuperTagCandidates;
 
 int encodeLinkDistance(const int & st, const int & n0);
+int encodeEmptyDistance(const int & hi, const int & di);
 int encodeLinkDistanceOrDirection(const int & hi, const int & di, bool dir);
 std::string nCharPrev(const Sentence & sent, int index, int n);
 std::string nCharNext(const Sentence & sent, int index, int n);

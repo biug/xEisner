@@ -23,7 +23,7 @@ namespace emptyeisner2nd {
 		R2L_EMPTY_OUTSIDE = L2R_EMPTY_OUTSIDE + MAX_EMPTY_SIZE,
 	};
 
-	extern std::string TYPE_NAME[43];
+	extern std::string TYPE_NAME[R2L_EMPTY_OUTSIDE + MAX_EMPTY_SIZE];
 
 	struct StateScore {
 		tscore score;
@@ -32,7 +32,7 @@ namespace emptyeisner2nd {
 		StateScore(tscore sc = 0, int sp = -1, int n = -1) : score(sc), split(sp), lecnum(n) {}
 		StateScore(const StateScore & ss) : StateScore(ss.score, ss.split, ss.lecnum) {}
 
-		void reset() { score = 0; split = -1; lecnum = -1; }
+		void reset() { score = 0L; split = -1; lecnum = -1; }
 		void refer(tscore sc, int sp, int n) { score = sc; split = sp; lecnum = n; }
 		bool operator<(const tscore & sc) const { return split == -1 || score < sc; }
 	};
@@ -41,7 +41,7 @@ namespace emptyeisner2nd {
 	public:
 		int type;
 		int left, right;
-		StateScore states[MAX_ACTION_SIZE];
+		StateScore states[R2L_EMPTY_OUTSIDE + MAX_EMPTY_SIZE];
 
 	public:
 
@@ -54,7 +54,7 @@ namespace emptyeisner2nd {
 			left = l;
 			right = r;
 			type = -1;
-			for (int t = 0; t < 43; ++t) {
+			for (int t = 0; t < R2L_EMPTY_OUTSIDE + MAX_EMPTY_SIZE; ++t) {
 				states[t].reset();
 			}
 		}

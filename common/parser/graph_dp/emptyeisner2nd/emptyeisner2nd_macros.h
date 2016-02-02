@@ -26,6 +26,8 @@ namespace emptyeisner2nd {
 #define ARC_LEFT(X,Y)			(IS_EMPTY(Y) ? LESS_EMPTY_SOLID(Y,X) : LESS_SOLID_SOLID(Y,X))
 #define ARC_RIGHT(X,Y)			(IS_EMPTY(Y) ? LESS_SOLID_EMPTY(X,Y) : LESS_SOLID_SOLID(X,Y))
 
+	typedef TriGram<int> ECArc;
+
 	typedef BiGram<int> Arc;
 	typedef TriGram<int> BiArc;
 
