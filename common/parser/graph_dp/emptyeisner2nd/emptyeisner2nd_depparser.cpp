@@ -168,12 +168,13 @@ namespace emptyeisner2nd {
 
 		switch (m_nState) {
 		case ParserState::TRAIN:
-			decodeArcs(m_nRealEmpty);
-			update(m_nRealEmpty);
+			decodeArcs(maxEC);
+			update(maxEC);
 //			std::cout << "real empty node is " << m_nRealEmpty << " train empty node is " << maxEC << std::endl;
 			break;
 		case ParserState::PARSE:
-			decodeArcs(m_vecCorrectEmpty[m_nTrainingRound - 1]);
+//			std::cout << "score is " << m_lItems[0][m_nSentenceLength][maxEC].states[R2L].score << std::endl; //debug
+			decodeArcs(m_vecCorrectEmpty[maxEC]);
 			generate(retval, correct);
 			break;
 		case ParserState::GOLDTEST:
@@ -195,6 +196,7 @@ namespace emptyeisner2nd {
 				if (d > 1) {
 					m_lArcScore[i][0][0][nec] = baseArcScore(i, i + d - 1, nec) + l2r_base_empty_score * nec;
 					m_lArcScore[i][1][0][nec] = baseArcScore(i + d - 1, i, nec) + r2l_base_empty_score * nec;
+//					if (i == 7 && d == 7 && nec == 0) std::cout << m_lArcScore[i][1][0][nec] << std::endl;
 				}
 			}
 			for (int ec = 1; ec <= MAX_EMPTY_SIZE; ++ec) {
@@ -379,6 +381,13 @@ namespace emptyeisner2nd {
 										// bi-sibling arc score
 										r2l_bi_arc_scores[0][0],
 										s, lnec, R2L_SOLID_BOTH);
+//								if (l == 4 && r == 13 && s == 7 && lnec + rnec == 0) {
+//									std::cout << "jux score is " << litem.states[JUX].score << std::endl;
+//									std::cout << "r2l_solid outside score is " << ritem.states[R2L_SOLID_OUTSIDE].score << std::endl;
+//									std::cout << "arc score is " << r2l_arc_scores_list[0][lnec + rnec] << std::endl;
+//									std::cout << "bi arc scores is " << r2l_bi_arc_scores[0][0] << std::endl;
+//									std::cout << "score is " << solidItem.states[R2L_SOLID_BOTH].score << std::endl;
+//								}
 							}
 							if (litem.states[R2L].split != -1) {
 								// r2l

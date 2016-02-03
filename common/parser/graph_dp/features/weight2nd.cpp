@@ -174,7 +174,7 @@ void Weight2nd::getOrUpdateBiArcScore(tscore & retval, const int & p, const int 
 	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	word_tag_int.refer(c2_word, c_tag, 0);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC2wC1p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	word_tag_int.referLast(dir);
-	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
+	m_mapC2wC1p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 }
