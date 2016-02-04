@@ -11,8 +11,8 @@
 typedef int cscore;
 typedef long long tscore;
 
-#define MAX_SENTENCE_SIZE 256
-#define MAX_SENTENCE_BITS 8
+#define MAX_SENTENCE_SIZE 64
+#define MAX_SENTENCE_BITS 6
 
 #define MAX_EMPTYTAG_SIZE	32
 

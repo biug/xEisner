@@ -259,7 +259,9 @@ namespace emptyeisner2nd {
 					}
 				}
 			}
-			m_lBiSiblingScore[m_nSentenceLength - d + 1][m_nSentenceLength - d + 1][1][0][0][nec] = biSiblingArcScore(m_nSentenceLength, -1, m_nSentenceLength - d + 1, nec);
+			if (d > 1) {
+				m_lBiSiblingScore[m_nSentenceLength - d + 1][1][m_nSentenceLength - d + 1][0][0][nec] = biSiblingArcScore(m_nSentenceLength, -1, m_nSentenceLength - d + 1, nec);
+			}
 		}
 	}
 
@@ -674,7 +676,7 @@ namespace emptyeisner2nd {
 					// r2l_solid_outside
 					items[lnec].updateStates(
 							l2ritems[lnec].states[L2R].score +
-							m_lBiSiblingScore[l][l][1][0][0][lnec] +
+							m_lBiSiblingScore[l][1][l][0][0][lnec] +
 							m_lArcScore[l][1][0][lnec],
 							r, lnec, R2L_SOLID_OUTSIDE);
 					++lnec;
@@ -928,7 +930,7 @@ namespace emptyeisner2nd {
 				retval->push_back(DependencyTreeNode(TREENODE_POSTAGGEDWORD(correct[idx++]), -1, NULL_LABEL));
 			}
 			else {
-				nidmap[itr_e->second() * 256 + itr_e->first()] = nidx++;
+				nidmap[(itr_e->second() << MAX_SENTENCE_BITS) + itr_e->first()] = nidx++;
 				retval->push_back(DependencyTreeNode(POSTaggedWord(TEmptyTag::key(DECODE_EMPTY_TAG((itr_e++)->second())), "EMCAT"), -1, NULL_LABEL));
 			}
 		}
@@ -937,12 +939,12 @@ namespace emptyeisner2nd {
 			retval->push_back(DependencyTreeNode(TREENODE_POSTAGGEDWORD(correct[idx++]), -1, NULL_LABEL));
 		}
 		while (itr_e != emptyArcs.end()) {
-			nidmap[itr_e->second() * 256 + itr_e->first()] = nidx++;
+			nidmap[(itr_e->second() << MAX_SENTENCE_BITS) + itr_e->first()] = nidx++;
 			retval->push_back(DependencyTreeNode(POSTaggedWord(TEmptyTag::key(DECODE_EMPTY_TAG((itr_e++)->second())), "EMCAT"), -1, NULL_LABEL));
 		}
 
 		for (const auto & arc : m_vecTrainECArcs) {
-			TREENODE_HEAD(retval->at(nidmap[IS_EMPTY(arc.second()) ? arc.second() * 256 + arc.first() : arc.second()])) = nidmap[arc.first()];
+			TREENODE_HEAD(retval->at(nidmap[IS_EMPTY(arc.second()) ? (arc.second() << MAX_SENTENCE_BITS) + arc.first() : arc.second()])) = nidmap[arc.first()];
 		}
 	}
 
