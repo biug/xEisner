@@ -489,35 +489,35 @@ tscore Weightec2nd::getOrUpdateBiArcScore(const int & p, const int & c, const in
 	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	tag_tag_int.referLast(dir);
 	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-	tag_tag_int.referLast(nec);
+	tag_tag_int.referLast(nec + 8);
 	m_mapC1pC2p.getOrUpdateScore(retval, tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	tag_tag_tag_int.refer(p_tag, c_tag, c2_tag, 0);
 	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	tag_tag_tag_int.referLast(dir);
 	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-	tag_tag_tag_int.referLast(nec);
+	tag_tag_tag_int.referLast(nec + 8);
 	m_mapPpC1pC2p.getOrUpdateScore(retval, tag_tag_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	word_word_int.refer(c_word, c2_word, 0);
 	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
 	word_word_int.referLast(dir);
 	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
-	word_word_int.referLast(nec);
+	word_word_int.referLast(nec + 8);
 	m_mapC1wC2w.getOrUpdateScore(retval, word_word_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	word_tag_int.refer(c_word, c2_tag, 0);
 	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	word_tag_int.referLast(dir);
 	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-	word_tag_int.referLast(nec);
+	word_tag_int.referLast(nec + 8);
 	m_mapC1wC2p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	word_tag_int.refer(c2_word, c_tag, 0);
 	m_mapC2wC1p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 	word_tag_int.referLast(dir);
 	m_mapC2wC1p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
-	word_tag_int.referLast(nec);
+	word_tag_int.referLast(nec + 8);
 	m_mapC2wC1p.getOrUpdateScore(retval, word_tag_int, m_nScoreIndex, amount, m_nTrainingRound);
 
 	return retval;
