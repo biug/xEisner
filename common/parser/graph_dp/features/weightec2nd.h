@@ -50,7 +50,7 @@ public:
 	void init(const WordPOSTag & tkEmpty, const WordPOSTag & tkStart, const WordPOSTag & tkEnd);
 	tscore getOrUpdateInnerEmptyScore(const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
 	tscore getOrUpdateBaseArcScore(const int & p, const int & c, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
-	tscore getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
+	tscore getOrUpdateBiArcScore(const int & p, const int & c, const int & c2, const int & nec, const int & amount, int sentLen, WordPOSTag (&sent)[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE]);
 };
 
 #endif

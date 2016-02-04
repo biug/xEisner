@@ -27,13 +27,11 @@ namespace emptyeisner2nd {
 #define ARC_RIGHT(X,Y)			(IS_EMPTY(Y) ? LESS_SOLID_EMPTY(X,Y) : LESS_SOLID_SOLID(X,Y))
 
 	typedef TriGram<int> ECArc;
+	typedef QuarGram<int> ECBiArc;
 
-	typedef BiGram<int> Arc;
-	typedef TriGram<int> BiArc;
-
-	bool operator<(const Arc & arc1, const Arc & arc2);
-	bool compareArc(const Arc & arc1, const Arc & arc2);
-	void Arcs2BiArcs(std::vector<Arc> & arcs, std::vector<BiArc> & triarcs);
+	bool operator<(const ECArc & arc1, const ECArc & arc2);
+	bool compareArc(const ECArc & arc1, const ECArc & arc2);
+	void Arcs2BiArcs(std::vector<ECArc> & arcs, std::vector<ECBiArc> & triarcs);
 }
 
 #endif

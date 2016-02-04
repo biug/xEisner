@@ -21,12 +21,10 @@ namespace emptyeisner2nd {
 		StateItem m_lItems[MAX_SENTENCE_SIZE][MAX_SENTENCE_SIZE][MAX_EMPTY_COUNT];
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE];
 		WordPOSTag m_lSentenceWithEmpty[MAX_SENTENCE_SIZE];
-		std::vector<Arc> m_vecCorrectArcs;
-		std::vector<BiArc> m_vecCorrectBiArcs;
 		std::vector<ECArc> m_vecCorrectECArcs;
-		std::vector<Arc> m_vecTrainArcs;
-		std::vector<BiArc> m_vecTrainBiArcs;
+		std::vector<ECBiArc> m_vecCorrectECBiArcs;
 		std::vector<ECArc> m_vecTrainECArcs;
+		std::vector<ECBiArc> m_vecTrainECBiArcs;
 		std::vector<int> m_vecCorrectEmpty;
 		int m_nSentenceLength;
 		int m_nMaxEmpty;
@@ -34,10 +32,10 @@ namespace emptyeisner2nd {
 		int m_nSentenceCount;
 
 		tscore m_lArcScore[MAX_SENTENCE_SIZE][2][MAX_EMPTY_SIZE + 1][MAX_EMPTY_COUNT];
-		tscore m_lBiSiblingScore[MAX_SENTENCE_SIZE][2][MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1];
+		tscore m_lBiSiblingScore[MAX_SENTENCE_SIZE][2][MAX_SENTENCE_SIZE][MAX_EMPTY_SIZE + 1][MAX_EMPTY_SIZE + 1][MAX_EMPTY_COUNT];
 
 		std::unordered_set<ECArc> m_setArcGoldScore;
-		std::unordered_set<BiArc> m_setBiSiblingArcGoldScore;
+		std::unordered_set<ECBiArc> m_setBiSiblingArcGoldScore;
 
 		void update(const int & nec);
 		void generate(DependencyTree * retval, const DependencyTree & correct);
@@ -48,13 +46,13 @@ namespace emptyeisner2nd {
 		void readEmptySentAndArcs(const DependencyTree & correct);
 
 		tscore baseArcScore(const int & p, const int & c, const int & nec);
-		tscore biSiblingArcScore(const int & p, const int & c, const int & c2);
+		tscore biSiblingArcScore(const int & p, const int & c, const int & c2, const int & nec);
 		void initArcScore(const int & d);
 		void initBiSiblingArcScore(const int & d);
 
 		tscore getOrUpdateInnerEmptyScore(const int & p, const int & c, const int & amount);
 		tscore getOrUpdateBaseArcScore(const int & p, const int & c, const int & amount);
-		tscore getOrUpdateBiSiblingScore(const int & p, const int & c, const int & c2, const int & amount);
+		tscore getOrUpdateBiSiblingScore(const int & p, const int & c, const int & c2, const int & nec, const int & amount);
 
 	public:
 		DepParser(const std::string & sFeatureInput, const std::string & sFeatureOut, int nState);
