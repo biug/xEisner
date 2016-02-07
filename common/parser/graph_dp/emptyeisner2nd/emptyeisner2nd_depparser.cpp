@@ -41,7 +41,7 @@ namespace emptyeisner2nd {
 			TEmptyTag::key(ec);
 //			(i < m_nSentenceLength ? TPOSTag::key(m_lSentence[i][0].second()) : END_WORD) +
 			// position information
-//			std::to_string(round((double)i / (double)m_nSentenceLength * 1000.0) / 1000.0);
+			std::to_string(round((double)i / (double)m_nSentenceLength * 1000.0) / 1000.0);
 		return TWord::code(token);
 	}
 
@@ -75,6 +75,7 @@ namespace emptyeisner2nd {
 				tIds.push_back(ENCODE_EMPTY(m_nSentenceLength, TEmptyTag::code(TREENODE_WORD(node))));
 			}
 			ecarcs.push_back(ECArc(h, p, nec));
+//			std::cout << "h = " << h << " p = " << p << " ec = " << nec << std::endl;
 		}
 		m_lSentence[m_nSentenceLength][0].refer(TWord::code(ROOT_WORD), TPOSTag::code(ROOT_POSTAG));
 		// refer empty node
@@ -97,13 +98,7 @@ namespace emptyeisner2nd {
 
 		readEmptySentAndArcs(correct);
 
-		Arcs2BiArcs(m_vecCorrectECArcs, m_vecCorrectECBiArcs);
-//		for (const auto & arc : m_vecCorrectECArcs) {
-//			std::cout << "from " << arc.first() << " to " << arc.second() << " with " << arc.third() << " empty" << std::endl;
-//		}
-//		for (const auto & biarc : m_vecCorrectECBiArcs) {
-//			std::cout << "from " << biarc.first() << " to " << biarc.second() << " and " << biarc.third() << " with " << biarc.forth() << " empty" << std::endl;
-//		}
+		Arcs2BiArcs(m_vecCorrectECArcs, m_vecCorrectBiArcs);
 
 		m_nMaxEmpty = 15;
 		if (m_nSentenceLength <= 10) m_nMaxEmpty = 4;
@@ -117,7 +112,7 @@ namespace emptyeisner2nd {
 				m_setArcGoldScore.insert(ECArc(ecarc.first() == -1 ? m_nSentenceLength : ecarc.first(), ecarc.second(), ecarc.third()));
 //				std::cout << "from " << ecarc.first() << " to " << ecarc.second() << " with " << ecarc.third() << " empty" << std::endl;
 			}
-			for (const auto & biarc : m_vecCorrectECBiArcs) {
+			for (const auto & biarc : m_vecCorrectBiArcs) {
 				m_setBiSiblingArcGoldScore.insert(ECBiArc(biarc.first(), biarc.second(), biarc.third(), biarc.forth()));
 			}
 		}
@@ -259,9 +254,7 @@ namespace emptyeisner2nd {
 					}
 				}
 			}
-			if (d > 1) {
-				m_lBiSiblingScore[m_nSentenceLength - d + 1][1][m_nSentenceLength - d + 1][0][0][nec] = biSiblingArcScore(m_nSentenceLength, -1, m_nSentenceLength - d + 1, nec);
-			}
+			m_lBiSiblingScore[m_nSentenceLength - d + 1][1][m_nSentenceLength - d + 1][0][0][nec] = biSiblingArcScore(m_nSentenceLength, -1, m_nSentenceLength - d + 1, nec);
 		}
 	}
 
@@ -868,7 +861,7 @@ namespace emptyeisner2nd {
 	}
 
 	void DepParser::update(const int & nec) {
-		Arcs2BiArcs(m_vecTrainECArcs, m_vecTrainECBiArcs);
+		Arcs2BiArcs(m_vecTrainECArcs, m_vecTrainBiArcs);
 
 		std::unordered_set<ECArc> positiveArcs;
 		positiveArcs.insert(m_vecCorrectECArcs.begin(), m_vecCorrectECArcs.end());
@@ -890,13 +883,13 @@ namespace emptyeisner2nd {
 		}
 
 		std::unordered_set<ECBiArc> positiveBiArcs;
-		positiveBiArcs.insert(m_vecCorrectECBiArcs.begin(), m_vecCorrectECBiArcs.end());
-		for (const auto & arc : m_vecTrainECBiArcs) {
+		positiveBiArcs.insert(m_vecCorrectBiArcs.begin(), m_vecCorrectBiArcs.end());
+		for (const auto & arc : m_vecTrainBiArcs) {
 			positiveBiArcs.erase(arc);
 		}
 		std::unordered_set<ECBiArc> negativeBiArcs;
-		negativeBiArcs.insert(m_vecTrainECBiArcs.begin(), m_vecTrainECBiArcs.end());
-		for (const auto & arc : m_vecCorrectECBiArcs) {
+		negativeBiArcs.insert(m_vecTrainBiArcs.begin(), m_vecTrainBiArcs.end());
+		for (const auto & arc : m_vecCorrectBiArcs) {
 			negativeBiArcs.erase(arc);
 		}
 		if (!positiveBiArcs.empty() || !negativeBiArcs.empty()) {
@@ -944,14 +937,14 @@ namespace emptyeisner2nd {
 		}
 
 		for (const auto & arc : m_vecTrainECArcs) {
-			TREENODE_HEAD(retval->at(nidmap[IS_EMPTY(arc.second()) ? (arc.second() << MAX_SENTENCE_BITS) + arc.first() : arc.second()])) = nidmap[arc.first()];
+			TREENODE_HEAD(retval->at(nidmap[IS_EMPTY(arc.second()) ? ((arc.second() << MAX_SENTENCE_BITS) + arc.first()) : arc.second()])) = nidmap[arc.first()];
 		}
 	}
 
 	void DepParser::goldCheck(int nec) {
 		if (m_nRealEmpty != nec) return;
-		Arcs2BiArcs(m_vecTrainECArcs, m_vecTrainECBiArcs);
-		if (m_vecCorrectECArcs.size() != m_vecTrainECArcs.size() || m_lItems[0][m_nSentenceLength][nec].states[R2L].score / GOLD_POS_SCORE != m_vecCorrectECArcs.size() + m_vecCorrectECBiArcs.size()) {
+		Arcs2BiArcs(m_vecTrainECArcs, m_vecTrainBiArcs);
+		if (m_vecCorrectECArcs.size() != m_vecTrainECArcs.size() || m_lItems[0][m_nSentenceLength][nec].states[R2L].score / GOLD_POS_SCORE != m_vecCorrectECArcs.size() + m_vecCorrectBiArcs.size()) {
 			std::cout << "gold parse len error at " << m_nTrainingRound << std::endl;
 			std::cout << "score is " << m_lItems[0][m_nSentenceLength][nec].states[R2L].score << std::endl;
 			std::cout << "len is " << m_vecTrainECArcs.size() << std::endl;
@@ -962,13 +955,13 @@ namespace emptyeisner2nd {
 			std::sort(m_vecCorrectECArcs.begin(), m_vecCorrectECArcs.end(), [](const ECArc & arc1, const ECArc & arc2){ return arc1 < arc2; });
 			std::sort(m_vecTrainECArcs.begin(), m_vecTrainECArcs.end(), [](const ECArc & arc1, const ECArc & arc2){ return arc1 < arc2; });
 			for (int n = m_vecCorrectECArcs.size(); i < n; ++i) {
-				if (m_vecCorrectECArcs[i].first() != m_vecTrainECArcs[i].first() || m_vecCorrectECArcs[i].second() != m_vecTrainECArcs[i].second() || m_vecCorrectECArcs[i].third() != m_vecTrainECArcs[i].third()) {
+				if (m_vecCorrectECArcs[i].first() != m_vecTrainECArcs[i].first() || m_vecCorrectECArcs[i].second() != m_vecTrainECArcs[i].second()) {
 					break;
 				}
 			}
 			if (i != m_vecCorrectECArcs.size()) {
 				std::cout << "gold parse tree error at " << m_nTrainingRound << std::endl;
-				for (const auto & biarc : m_vecTrainECBiArcs) {
+				for (const auto & biarc : m_vecTrainBiArcs) {
 					std::cout << biarc << std::endl;
 				}
 				++m_nTotalErrors;

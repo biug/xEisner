@@ -27,6 +27,7 @@ namespace emptyeisner2nd {
 #define ARC_RIGHT(X,Y)			(IS_EMPTY(Y) ? LESS_SOLID_EMPTY(X,Y) : LESS_SOLID_SOLID(X,Y))
 
 	typedef TriGram<int> ECArc;
+
 	typedef QuarGram<int> ECBiArc;
 
 	bool operator<(const ECArc & arc1, const ECArc & arc2);

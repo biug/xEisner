@@ -83,7 +83,7 @@ namespace emptyeisner2nd {
 						}
 						else {
 							int nec = itr->third() - (itr + 1)->third();
-							if (IS_EMPTY((itr + 1)->second())) --nec;
+							if (IS_EMPTY((itr + 1)->third())) --nec;
 							biarcs.push_back(ECBiArc(head, (itr + 1)->second(), itr->second(), nec));
 						}
 					}
@@ -93,7 +93,7 @@ namespace emptyeisner2nd {
 						}
 						else {
 							int nec = itr->third() - (itr - 1)->third();
-							if (IS_EMPTY((itr - 1)->second())) --nec;
+							if (IS_EMPTY((itr - 1)->third())) --nec;
 							biarcs.push_back(ECBiArc(head, (itr - 1)->second(), itr->second(), nec));
 						}
 					}
@@ -105,7 +105,7 @@ namespace emptyeisner2nd {
 			itr_s = itr_e;
 		}
 		for (auto & arc : arcs) {
-			if (arc.first() == arcs.size()) {
+			if (arc.first() == maxid + 1) {
 				arc.refer(-1, arc.second(), arc.third());
 				break;
 			}

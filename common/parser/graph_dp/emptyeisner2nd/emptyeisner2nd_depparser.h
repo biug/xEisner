@@ -22,9 +22,9 @@ namespace emptyeisner2nd {
 		WordPOSTag m_lSentence[MAX_SENTENCE_SIZE][MAX_EMPTYTAG_SIZE];
 		WordPOSTag m_lSentenceWithEmpty[MAX_SENTENCE_SIZE];
 		std::vector<ECArc> m_vecCorrectECArcs;
-		std::vector<ECBiArc> m_vecCorrectECBiArcs;
+		std::vector<ECBiArc> m_vecCorrectBiArcs;
 		std::vector<ECArc> m_vecTrainECArcs;
-		std::vector<ECBiArc> m_vecTrainECBiArcs;
+		std::vector<ECBiArc> m_vecTrainBiArcs;
 		std::vector<int> m_vecCorrectEmpty;
 		int m_nSentenceLength;
 		int m_nMaxEmpty;
